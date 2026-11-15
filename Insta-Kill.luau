@@ -1,12 +1,14 @@
 -- ============================================================================
--- CIPHER // INSTA-KILL BURST ENGINE V5.0 (MODERN RESCRIPT)
--- High-Performance Proximity Eliminator with Smart Burst & Lightweight UI
+-- CIPHER // INSTA-KILL BURST ENGINE V6.0 (COSMIC ETERNAL RESCRIPT)
+-- High-Performance Proximity Eliminator with Smart Burst & Cosmic UI
+-- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
@@ -16,26 +18,27 @@ local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: a
 	or (syn and syn.firetouchinterest)
 
 -- ============================================================================
--- THEME & CONFIGURATION
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
 -- ============================================================================
 local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
 }
 
 local RANGE: number           = 50
 local RANGE_SQ: number        = RANGE * RANGE
-local TOUCH_BURST: number     = 3      -- 3 double-tap pairs per priority part is optimal & zero-lag
-local REMOTE_BURST: number    = 2      -- 2 remote dispatches per cycle prevents server queue drops
-local ATTACK_INTERVAL: number = 1 / 30 -- 30 Hz smooth tick loop
+local TOUCH_BURST: number     = 3
+local REMOTE_BURST: number    = 2
+local ATTACK_INTERVAL: number = 1 / 30
 local TOGGLE_KEY: Enum.KeyCode = Enum.KeyCode.K
 local Active: boolean         = true
 
@@ -49,6 +52,14 @@ local currentTargetHum: Humanoid?          = nil
 local currentTargetRoot: BasePart?         = nil
 local currentPriorityParts: { BasePart }   = {}
 local lastAttackTime: number               = 0
+
+-- Priority Parts
+local PRIORITY_PARTS = {
+	"HumanoidRootPart",
+	"Head",
+	"UpperTorso",
+	"Torso",
+}
 
 -- ============================================================================
 -- SAFE GUI RESOLVER
@@ -77,7 +88,7 @@ if existing then
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT UI
+-- COSMIC LIQUID UI & MOBILE SCALING
 -- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CipherInstaKillUI"
@@ -89,32 +100,62 @@ local MainCard = Instance.new("Frame")
 MainCard.Name = "MainCard"
 MainCard.Size = UDim2.fromOffset(230, 68)
 MainCard.Position = UDim2.new(0.5, -115, 0.09, 0)
-MainCard.BackgroundColor3 = THEME.BgPrimary
-MainCard.BackgroundTransparency = 0.08
+MainCard.BackgroundColor3 = THEME.PanelBg
+MainCard.BackgroundTransparency = 0.05
 MainCard.BorderSizePixel = 0
 MainCard.Active = true
 MainCard.Parent = ScreenGui
 
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainCard
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
 local CardCorner = Instance.new("UICorner")
-CardCorner.CornerRadius = UDim.new(0, 8)
+CardCorner.CornerRadius = UDim.new(0, 9)
 CardCorner.Parent = MainCard
 
 local CardStroke = Instance.new("UIStroke")
-CardStroke.Thickness = 1
-CardStroke.Color = THEME.Border
+CardStroke.Thickness = 1.5
+CardStroke.Color = THEME.AccentPurple
 CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 CardStroke.Parent = MainCard
 
--- Header / Drag Bar
+-- Cosmic Liquid Animated Gradient for Border
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = CardStroke
+
+-- Header
 local Header = Instance.new("Frame")
 Header.Name = "Header"
 Header.Size = UDim2.new(1, 0, 0, 22)
-Header.BackgroundColor3 = THEME.BgCard
+Header.BackgroundColor3 = THEME.CardBg
 Header.BorderSizePixel = 0
 Header.Parent = MainCard
 
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.CornerRadius = UDim.new(0, 9)
 HeaderCorner.Parent = Header
 
 local HeaderTitle = Instance.new("TextLabel")
@@ -123,10 +164,25 @@ HeaderTitle.Position = UDim2.new(0, 8, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
 HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
-HeaderTitle.TextColor3 = THEME.Accent
+HeaderTitle.TextColor3 = THEME.TextWhite
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Text = "⚡ INSTA-KILL // BURST ENGINE [K]"
+HeaderTitle.Text = "⚡ INSTA-KILL // BURST [K]"
 HeaderTitle.Parent = Header
+
+-- Cosmic Liquid Flow on Text
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.TextWhite),
+	ColorSequenceKeypoint.new(0.35, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.70, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(1.00, THEME.TextWhite),
+})
+TitleGradient.Parent = HeaderTitle
+
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
+	TitleGradient.Rotation = (TitleGradient.Rotation + dt * 35) % 360
+end)
 
 local StatusDot = Instance.new("Frame")
 StatusDot.Size = UDim2.fromOffset(7, 7)
@@ -144,11 +200,11 @@ local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.new(1, -14, 0, 24)
 ToggleButton.Position = UDim2.new(0, 7, 0, 25)
-ToggleButton.BackgroundColor3 = THEME.BgCard
+ToggleButton.BackgroundColor3 = THEME.CardBg
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 10
 ToggleButton.TextColor3 = THEME.ActiveGreen
-ToggleButton.Text = "BURST: ARMED // 30Hz"
+ToggleButton.Text = "INSTA-KILL: ACTIVE"
 ToggleButton.AutoButtonColor = false
 ToggleButton.Parent = MainCard
 
@@ -158,12 +214,10 @@ BtnCorner.Parent = ToggleButton
 
 local BtnStroke = Instance.new("UIStroke")
 BtnStroke.Thickness = 1
-BtnStroke.Color = THEME.Border
-BtnStroke.Transparency = 0.5
-BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+BtnStroke.Color = THEME.BorderDark
 BtnStroke.Parent = ToggleButton
 
--- Target Status Label
+-- Target Info Label
 local TargetLabel = Instance.new("TextLabel")
 TargetLabel.Size = UDim2.new(1, -14, 0, 16)
 TargetLabel.Position = UDim2.new(0, 7, 0, 50)
@@ -210,26 +264,25 @@ end
 
 setupDraggable(MainCard, Header)
 
--- Hover effect
 ToggleButton.MouseEnter:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.AccentDim}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardHover}):Play()
 end)
 ToggleButton.MouseLeave:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.BgCard}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardBg}):Play()
 end)
 
 local function updateUI()
 	if Active then
-		ToggleButton.Text = "BURST: ARMED // 30Hz"
+		ToggleButton.Text = "INSTA-KILL: ACTIVE"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
 		StatusDot.BackgroundColor3 = THEME.ActiveGreen
-		CardStroke.Color = THEME.Border
+		BtnStroke.Color = THEME.AccentPurple
 	else
-		ToggleButton.Text = "BURST: STANDBY [K]"
+		ToggleButton.Text = "INSTA-KILL: STANDBY [K]"
 		ToggleButton.TextColor3 = THEME.TextMuted
-		StatusDot.BackgroundColor3 = THEME.BorderDim
-		CardStroke.Color = THEME.BorderDim
-		TargetLabel.Text = "Target: [Disabled]"
+		StatusDot.BackgroundColor3 = THEME.BorderDark
+		BtnStroke.Color = THEME.BorderDark
+		TargetLabel.Text = "Target: [Offline]"
 	end
 end
 
@@ -253,11 +306,11 @@ end)
 local function findFightRemote(tool: Tool): RemoteEvent?
 	local r = tool:FindFirstChild("FightEvent")
 	if r and r:IsA("RemoteEvent") then return r end
-	for _, o in ipairs(tool:GetChildren()) do
-		if o:IsA("RemoteEvent") then
-			local n = string.lower(o.Name)
-			if string.find(n, "fight", 1, true) or string.find(n, "slap", 1, true) or string.find(n, "event", 1, true) then
-				return o
+	for _, obj in ipairs(tool:GetChildren()) do
+		if obj:IsA("RemoteEvent") then
+			local n = string.lower(obj.Name)
+			if string.find(n, "fight", 1, true) or string.find(n, "slap", 1, true) or string.find(n, "hit", 1, true) then
+				return obj
 			end
 		end
 	end
@@ -272,29 +325,130 @@ local function rebuildToolCache()
 	local char = LocalPlayer.Character
 	if not char then return end
 
-	for _, o in ipairs(char:GetChildren()) do
-		if o:IsA("Tool") then
-			table.insert(toolList, o)
-
-			local handle = o:FindFirstChild("Handle")
-			if not (handle and handle:IsA("BasePart")) then
-				handle = o:FindFirstChildWhichIsA("BasePart")
-			end
-
+	for _, item in ipairs(char:GetChildren()) do
+		if item:IsA("Tool") then
+			table.insert(toolList, item)
+			local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
 			if handle and handle:IsA("BasePart") then
-				touchCache[o] = handle
-				handle.CanCollide = false
-				handle.Massless = true
-				handle.CanTouch = true
+				touchCache[item] = handle
 			end
-
-			local rem = findFightRemote(o)
+			local rem = findFightRemote(item)
 			if rem then
-				remoteCache[o] = rem
+				remoteCache[item] = rem
 			end
 		end
 	end
 end
+
+-- ============================================================================
+-- TARGET ACQUISITION & EXECUTION
+-- ============================================================================
+local function acquireNearestTarget()
+	local char = LocalPlayer.Character
+	if not char then
+		currentTargetPlayer = nil
+		currentTargetHum = nil
+		currentTargetRoot = nil
+		table.clear(currentPriorityParts)
+		return
+	end
+
+	local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+	if not (myRoot and myRoot:IsA("BasePart")) then return end
+
+	local myPos = myRoot.Position
+	local closestPlayer: Player? = nil
+	local closestDistSq: number = RANGE_SQ
+	local closestRoot: BasePart? = nil
+	local closestHum: Humanoid? = nil
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local pChar = player.Character
+			if pChar then
+				local hum = pChar:FindFirstChildOfClass("Humanoid")
+				local root = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
+				if hum and root and root:IsA("BasePart") and hum.Health > 0 then
+					local dx = root.Position.X - myPos.X
+					local dy = root.Position.Y - myPos.Y
+					local dz = root.Position.Z - myPos.Z
+					local distSq = dx * dx + dy * dy + dz * dz
+					if distSq < closestDistSq then
+						closestDistSq = distSq
+						closestPlayer = player
+						closestRoot = root
+						closestHum = hum
+					end
+				end
+			end
+		end
+	end
+
+	currentTargetPlayer = closestPlayer
+	currentTargetHum = closestHum
+	currentTargetRoot = closestRoot
+	table.clear(currentPriorityParts)
+
+	if closestPlayer and closestPlayer.Character then
+		local c = closestPlayer.Character
+		for _, partName in ipairs(PRIORITY_PARTS) do
+			local p = c:FindFirstChild(partName)
+			if p and p:IsA("BasePart") then
+				table.insert(currentPriorityParts, p)
+			end
+		end
+		local dist = math.sqrt(closestDistSq)
+		TargetLabel.Text = string.format("Target: %s (%.0f studs)", closestPlayer.DisplayName, dist)
+	else
+		TargetLabel.Text = "Target: [None in 50 studs]"
+	end
+end
+
+local function executeBurstStrike()
+	if not currentTargetRoot or not currentTargetRoot.Parent then return end
+	if currentTargetHum and currentTargetHum.Health <= 0 then return end
+
+	-- 1. Melee Combat Remotes
+	for _, tool in ipairs(toolList) do
+		local rem = remoteCache[tool]
+		if rem and rem.Parent and currentTargetRoot and currentTargetRoot.Parent then
+			for _ = 1, REMOTE_BURST do
+				pcall(rem.FireServer, rem, currentTargetRoot)
+			end
+		end
+	end
+
+	-- 2. Melee Touch Interests
+	if fireTouch then
+		for _, tool in ipairs(toolList) do
+			local toolPart = touchCache[tool]
+			if toolPart and toolPart.Parent then
+				for _, enemyPart in ipairs(currentPriorityParts) do
+					if enemyPart and enemyPart.Parent then
+						for _ = 1, TOUCH_BURST do
+							pcall(fireTouch, toolPart, enemyPart, 0)
+							pcall(fireTouch, toolPart, enemyPart, 1)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function()
+	if not Active then return end
+
+	local now = os.clock()
+	if now - lastAttackTime < ATTACK_INTERVAL then return end
+	lastAttackTime = now
+
+	acquireNearestTarget()
+
+	if currentTargetRoot and #toolList > 0 then
+		executeBurstStrike()
+	end
+end)
 
 local function hookCharacter(char: Model)
 	rebuildToolCache()
@@ -315,136 +469,4 @@ if LocalPlayer.Character then
 end
 LocalPlayer.CharacterAdded:Connect(hookCharacter)
 
--- Priority Parts (Essential hit registry)
-local PRIORITY_NAMES = { "HumanoidRootPart", "Head", "UpperTorso", "Torso", "LowerTorso" }
-
-local function buildPriorityParts(char: Model): { BasePart }
-	local parts: { BasePart } = {}
-	for _, name in ipairs(PRIORITY_NAMES) do
-		local p = char:FindFirstChild(name)
-		if p and p:IsA("BasePart") then
-			table.insert(parts, p)
-		end
-	end
-	return parts
-end
-
--- ============================================================================
--- TARGET ACQUISITION & EXECUTION ENGINE
--- ============================================================================
-local function updateTarget()
-	local myChar = LocalPlayer.Character
-	if not myChar then
-		currentTargetPlayer = nil
-		currentTargetHum = nil
-		currentTargetRoot = nil
-		table.clear(currentPriorityParts)
-		return
-	end
-
-	local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-	if not (myRoot and myRoot:IsA("BasePart")) then
-		currentTargetPlayer = nil
-		currentTargetHum = nil
-		currentTargetRoot = nil
-		table.clear(currentPriorityParts)
-		return
-	end
-
-	local myPos = myRoot.Position
-	local closestPlayer: Player? = nil
-	local closestRoot: BasePart? = nil
-	local closestHum: Humanoid? = nil
-	local closestDistSq: number = RANGE_SQ
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			local pChar = player.Character
-			if pChar then
-				local hum = pChar:FindFirstChildOfClass("Humanoid")
-				local pRoot = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
-				if hum and hum.Health > 0 and pRoot and pRoot:IsA("BasePart") then
-					local diff = pRoot.Position - myPos
-					local dsq = diff.X * diff.X + diff.Y * diff.Y + diff.Z * diff.Z
-					if dsq < closestDistSq then
-						closestDistSq = dsq
-						closestPlayer = player
-						closestRoot = pRoot
-						closestHum = hum
-					end
-				end
-			end
-		end
-	end
-
-	if closestPlayer and closestPlayer.Character then
-		currentTargetPlayer = closestPlayer
-		currentTargetHum = closestHum
-		currentTargetRoot = closestRoot
-		currentPriorityParts = buildPriorityParts(closestPlayer.Character)
-		TargetLabel.Text = string.format("Target: %s (%.1fm)", closestPlayer.DisplayName, math.sqrt(closestDistSq))
-		TargetLabel.TextColor3 = THEME.Accent
-	else
-		currentTargetPlayer = nil
-		currentTargetHum = nil
-		currentTargetRoot = nil
-		table.clear(currentPriorityParts)
-		TargetLabel.Text = "Target: [Searching...]"
-		TargetLabel.TextColor3 = THEME.TextMuted
-	end
-end
-
-local function executeBurst()
-	if not currentTargetPlayer or not currentTargetHum or currentTargetHum.Health <= 0 then
-		return
-	end
-
-	-- Tool Activation & Remote Bursts
-	for i = 1, #toolList do
-		local tool = toolList[i]
-		if tool and tool.Parent then
-			pcall(tool.Activate, tool)
-
-			local rem = remoteCache[tool]
-			local root = currentTargetRoot
-			if rem and root and rem.Parent then
-				for _ = 1, REMOTE_BURST do
-					pcall(rem.FireServer, rem, root)
-				end
-			end
-
-			-- Touch Interest Burst
-			if fireTouch then
-				local touch = touchCache[tool]
-				if touch and touch.Parent then
-					for p = 1, #currentPriorityParts do
-						local targetPart = currentPriorityParts[p]
-						if targetPart and targetPart.Parent then
-							for _ = 1, TOUCH_BURST do
-								pcall(fireTouch, touch, targetPart, 0)
-								pcall(fireTouch, touch, targetPart, 1)
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-end
-
--- Main tick connection (Smooth 30 Hz loop)
-RunService.Heartbeat:Connect(function()
-	if not Active then return end
-
-	local now = os.clock()
-	if now - lastAttackTime < ATTACK_INTERVAL then return end
-	lastAttackTime = now
-
-	updateTarget()
-	if currentTargetPlayer then
-		executeBurst()
-	end
-end)
-
-updateUI()
-print("[Insta-Kill] CIPHER // INSTA-KILL BURST ENGINE V5.0 Loaded.")
+print("⚡ [Insta-Kill] CIPHER // V6.0 Cosmic Eternal Loaded.")
