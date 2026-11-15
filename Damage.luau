@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // HITBOX EXPANDER V4.0 (MODERN RESCRIPT)
 -- Event-Driven Hitbox Expander with Full Restoration & Lightweight UI
