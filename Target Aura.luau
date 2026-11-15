@@ -1,12 +1,14 @@
 -- ============================================================================
--- CIPHER // TYCOON TOOL GRABBER V7.0 (HEADLESS BACKGROUND SERVICE)
--- Strict Filtering: GearGiver1 ONLY from Robotic, Stone, Storm, and Magic
--- Headless Edition: Always Active, UI-less, Lightweight
+-- CIPHER // TARGET AURA V7.0 (COSMIC ETERNAL RESCRIPT)
+-- Selective Target Redirector Triggered on Attack/Swing (Zero-Ping Overhead)
+-- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
 -- ============================================================================
 
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
@@ -15,190 +17,513 @@ local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: a
 	or (getgenv and (getgenv().firetouchinterest or getgenv().fire_touch_interest))
 	or (syn and syn.firetouchinterest)
 
--- Destroy any previous UI if left over
-pcall(function()
-	local core = game:GetService("CoreGui"):FindFirstChild("CipherToolGrabberUI")
-	if core then core:Destroy() end
-	local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	if pgui then
-		local u = pgui:FindFirstChild("CipherToolGrabberUI")
-		if u then u:Destroy() end
+-- ============================================================================
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
+-- ============================================================================
+local THEME = {
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
+	ActiveButtonBg  = Color3.fromRGB(48, 20, 78),
+}
+
+local TOGGLE_KEY = Enum.KeyCode.T
+local TOUCH_BURST = 3
+local TargetList: { [Player]: boolean } = {}
+local Active: boolean = true
+
+local PRIORITY_PARTS = {
+	"HumanoidRootPart",
+	"Head",
+	"UpperTorso",
+	"Torso",
+}
+
+-- Caches
+local toolParts: { BasePart } = {}
+local toolRemotes: { RemoteEvent } = {}
+local equippedTools: { Tool } = {}
+local toolConnections: { [Tool]: RBXScriptConnection } = {}
+
+-- ============================================================================
+-- SAFE GUI RESOLVER
+-- ============================================================================
+local function getGuiContainer(): Instance
+	local success, core = pcall(function()
+		return game:GetService("CoreGui")
+	end)
+	if success and core then
+		local canWrite = pcall(function()
+			local test = Instance.new("Folder")
+			test.Parent = core
+			test:Destroy()
+		end)
+		if canWrite then
+			return core
+		end
 	end
+	return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local guiContainer = getGuiContainer()
+local existingUI = guiContainer:FindFirstChild("CipherTargetAuraUI")
+if existingUI then
+	existingUI:Destroy()
+end
+
+-- ============================================================================
+-- COSMIC LIQUID UI & MOBILE SCALING
+-- ============================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CipherTargetAuraUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = guiContainer
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.fromOffset(250, 36)
+MainFrame.Position = UDim2.new(0.5, -125, 0.02, 0)
+MainFrame.BackgroundColor3 = THEME.PanelBg
+MainFrame.BackgroundTransparency = 0.05
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.ClipsDescendants = false
+MainFrame.Parent = ScreenGui
+
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainFrame
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 9)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = THEME.AccentPurple
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = MainFrame
+
+-- Cosmic Liquid Border Gradient
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = MainStroke
+
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
 end)
 
--- STRICT FILTER SETS: ONLY these 4 bases are allowed to give tools
-local ALLOWED_BASES: { [string]: boolean } = {
-	["Robotic"] = true,
-	["Stone"]   = true,
-	["Storm"]   = true,
-	["Magic"]   = true,
-}
+-- Top Control Bar
+local ControlBar = Instance.new("Frame")
+ControlBar.Name = "ControlBar"
+ControlBar.Size = UDim2.new(1, -8, 0, 28)
+ControlBar.Position = UDim2.new(0, 4, 0, 4)
+ControlBar.BackgroundTransparency = 1
+ControlBar.Parent = MainFrame
 
--- EXCLUDED BASES: These bases are strictly blocked
-local EXCLUDED_BASES: { [string]: boolean } = {
-	["Web"]      = true,
-	["Strong"]   = true,
-	["Dark"]     = true,
-	["Spike"]    = true,
-	["Insanity"] = true,
-	["Giant"]    = true,
-}
+local BarLayout = Instance.new("UIListLayout")
+BarLayout.FillDirection = Enum.FillDirection.Horizontal
+BarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+BarLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+BarLayout.Padding = UDim.new(0, 4)
+BarLayout.Parent = ControlBar
 
-local SWEEP_INTERVAL: number = 0.5
-local tycoons: Instance = Workspace:FindFirstChild("Tycoons") or Workspace
-local touchableParts: { BasePart } = {}
-local currentRoot: BasePart? = nil
-local lastSweepTime: number = 0
+local function createBarButton(text: string, width: number, order: number): TextButton
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, width, 0, 26)
+	btn.BackgroundColor3 = THEME.CardBg
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 10
+	btn.TextColor3 = THEME.TextWhite
+	btn.Text = text
+	btn.AutoButtonColor = false
+	btn.LayoutOrder = order
+	btn.Parent = ControlBar
 
--- ============================================================================
--- STRICT FILTERING ENGINE
--- ============================================================================
-local function isValidGearGiver(descendant: Instance): (boolean, string?)
-	-- 1. Must be a TouchTransmitter inside a BasePart
-	if not descendant:IsA("TouchTransmitter") then return false, nil end
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
+	c.Parent = btn
 
-	local touchPart = descendant.Parent
-	if not (touchPart and touchPart:IsA("BasePart")) then return false, nil end
+	local s = Instance.new("UIStroke")
+	s.Thickness = 1
+	s.Color = THEME.BorderDark
+	s.Parent = btn
 
-	-- 2. Must be directly inside GearGiver1 (strict name match: "geargiver1")
-	local gearGiver = touchPart.Parent
-	if not gearGiver then return false, nil end
-	local giverName = string.lower(gearGiver.Name)
-	if giverName ~= "geargiver1" then return false, nil end
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardHover}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardBg}):Play()
+	end)
 
-	-- 3. Check ancestry to identify the base
-	local current: Instance? = gearGiver.Parent
-	local matchedBase: string? = nil
+	return btn
+end
 
-	while current and current ~= Workspace and current ~= game do
-		local cName = string.lower(current.Name)
+local ToggleButton = createBarButton("🎯 TARGET: ON", 102, 1)
+ToggleButton.TextColor3 = THEME.ActiveGreen
 
-		-- Reject immediately if an excluded base name appears
-		for excluded in pairs(EXCLUDED_BASES) do
-			if string.find(cName, string.lower(excluded), 1, true) then
-				return false, nil
-			end
+local DropdownToggle = createBarButton("TARGETS ▼", 82, 2)
+local AllButton = createBarButton("ALL", 28, 3)
+local ClearButton = createBarButton("CLR", 28, 4)
+
+-- Dropdown Roster Frame
+local DropdownList = Instance.new("ScrollingFrame")
+DropdownList.Name = "DropdownList"
+DropdownList.Size = UDim2.fromOffset(250, 160)
+DropdownList.Position = UDim2.new(0, 0, 1, 6)
+DropdownList.BackgroundColor3 = THEME.PanelBg
+DropdownList.BorderSizePixel = 0
+DropdownList.ScrollBarThickness = 3
+DropdownList.ScrollBarImageColor3 = THEME.AccentPurple
+DropdownList.Visible = false
+DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+DropdownList.Parent = MainFrame
+
+local DropdownCorner = Instance.new("UICorner")
+DropdownCorner.CornerRadius = UDim.new(0, 8)
+DropdownCorner.Parent = DropdownList
+
+local DropdownStroke = Instance.new("UIStroke")
+DropdownStroke.Thickness = 1
+DropdownStroke.Color = THEME.BorderDark
+DropdownStroke.Parent = DropdownList
+
+local DropdownLayout = Instance.new("UIListLayout")
+DropdownLayout.SortOrder = Enum.SortOrder.Name
+DropdownLayout.Padding = UDim.new(0, 4)
+DropdownLayout.Parent = DropdownList
+
+local DropdownPadding = Instance.new("UIPadding")
+DropdownPadding.PaddingTop = UDim.new(0, 6)
+DropdownPadding.PaddingBottom = UDim.new(0, 6)
+DropdownPadding.PaddingLeft = UDim.new(0, 6)
+DropdownPadding.PaddingRight = UDim.new(0, 6)
+DropdownPadding.Parent = DropdownList
+
+DropdownLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	DropdownList.CanvasSize = UDim2.new(0, 0, 0, DropdownLayout.AbsoluteContentSize.Y + 12)
+end)
+
+-- Universal Smooth Draggable Function
+local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
+	local dragging = false
+	local dragStartPos = Vector2.zero
+	local frameStartPos = UDim2.new()
+
+	dragAnchor.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+			frameStartPos = targetFrame.Position
 		end
+	end)
 
-		-- Check if an allowed base appears
-		for allowed in pairs(ALLOWED_BASES) do
-			if string.find(cName, string.lower(allowed), 1, true) then
-				matchedBase = allowed
-			end
+	UserInputService.InputChanged:Connect(function(input: InputObject)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
+			targetFrame.Position = UDim2.new(
+				frameStartPos.X.Scale,
+				frameStartPos.X.Offset + delta.X,
+				frameStartPos.Y.Scale,
+				frameStartPos.Y.Offset + delta.Y
+			)
 		end
+	end)
 
-		current = current.Parent
-	end
-
-	-- ONLY accept if it belongs to one of the 4 allowed bases
-	if matchedBase and ALLOWED_BASES[matchedBase] then
-		return true, matchedBase
-	end
-
-	return false, nil
-end
-
-local function evaluateAndAdd(descendant: Instance)
-	local isValid, _ = isValidGearGiver(descendant)
-	if not isValid then return end
-
-	local parent = descendant.Parent
-	if not (parent and parent:IsA("BasePart")) then return end
-
-	if not table.find(touchableParts, parent) then
-		table.insert(touchableParts, parent)
-
-		parent.AncestryChanged:Connect(function(_, newParent)
-			if not newParent then
-				local idx = table.find(touchableParts, parent)
-				if idx then
-					table.remove(touchableParts, idx)
-				end
-			end
-		end)
-	end
-end
-
--- Scan tycoons
-for _, inst in ipairs(tycoons:GetDescendants()) do
-	evaluateAndAdd(inst)
-end
-
-tycoons.DescendantAdded:Connect(evaluateAndAdd)
-
-if tycoons ~= Workspace then
-	Workspace.DescendantAdded:Connect(function(inst)
-		if string.lower(inst.Name) == "geargiver1" or inst:IsA("TouchTransmitter") then
-			evaluateAndAdd(inst)
+	UserInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
 		end
 	end)
 end
 
+setupDraggable(MainFrame, ControlBar)
+
 -- ============================================================================
--- TOOL CLAIM DISPATCHER
+-- ROSTER SYNC & UI LOGIC
 -- ============================================================================
-local function updateCharacterRoot(character: Model)
-	currentRoot = (character:WaitForChild("HumanoidRootPart", 5) 
-		or character:FindFirstChildWhichIsA("BasePart")) :: BasePart?
+local function updateDropdown()
+	for _, child in ipairs(DropdownList:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local isSelected = TargetList[player] == true
+			local itemBtn = Instance.new("TextButton")
+			itemBtn.Name = player.Name
+			itemBtn.Size = UDim2.new(1, 0, 0, 26)
+			itemBtn.BackgroundColor3 = isSelected and THEME.ActiveButtonBg or THEME.CardBg
+			itemBtn.Font = Enum.Font.GothamBold
+			itemBtn.TextSize = 10
+			itemBtn.TextColor3 = isSelected and THEME.AccentLight or THEME.TextMuted
+			itemBtn.Text = (isSelected and "★ " or "") .. player.DisplayName .. " (@" .. player.Name .. ")"
+			itemBtn.AutoButtonColor = false
+			itemBtn.Parent = DropdownList
+
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 5)
+			c.Parent = itemBtn
+
+			local s = Instance.new("UIStroke")
+			s.Thickness = 1
+			s.Color = isSelected and THEME.AccentPurple or THEME.BorderDark
+			s.Parent = itemBtn
+
+			itemBtn.MouseButton1Click:Connect(function()
+				if TargetList[player] then
+					TargetList[player] = nil
+				else
+					TargetList[player] = true
+				end
+				updateDropdown()
+			end)
+		end
+	end
+end
+
+DropdownToggle.MouseButton1Click:Connect(function()
+	DropdownList.Visible = not DropdownList.Visible
+	DropdownToggle.Text = DropdownList.Visible and "TARGETS ▲" or "TARGETS ▼"
+	if DropdownList.Visible then
+		updateDropdown()
+	end
+end)
+
+AllButton.MouseButton1Click:Connect(function()
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then
+			TargetList[p] = true
+		end
+	end
+	updateDropdown()
+end)
+
+ClearButton.MouseButton1Click:Connect(function()
+	table.clear(TargetList)
+	updateDropdown()
+end)
+
+local function updateUI()
+	if Active then
+		ToggleButton.Text = "🎯 TARGET: ON"
+		ToggleButton.TextColor3 = THEME.ActiveGreen
+	else
+		ToggleButton.Text = "🎯 TARGET: OFF [T]"
+		ToggleButton.TextColor3 = THEME.TextMuted
+	end
+end
+
+local function toggleActive()
+	Active = not Active
+	updateUI()
+end
+
+ToggleButton.MouseButton1Click:Connect(toggleActive)
+
+UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+	if gpe then return end
+	if input.KeyCode == TOGGLE_KEY then
+		toggleActive()
+	end
+end)
+
+-- ============================================================================
+-- TARGET ATTACK DISPATCHER (ON SWING / ATTACK ONLY)
+-- ============================================================================
+local function executeTargetStrike()
+	if not Active then return end
+
+	for targetPlayer in pairs(TargetList) do
+		if targetPlayer and targetPlayer.Parent and targetPlayer ~= LocalPlayer then
+			local pChar = targetPlayer.Character
+			if pChar then
+				local enemyRoot = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
+				local hum = pChar:FindFirstChildOfClass("Humanoid")
+				if enemyRoot and enemyRoot:IsA("BasePart") and hum and hum.Health > 0 then
+					-- 1. Melee Combat Remotes
+					for r = 1, #toolRemotes do
+						local rem = toolRemotes[r]
+						if rem and rem.Parent and enemyRoot.Parent then
+							pcall(rem.FireServer, rem, enemyRoot)
+						end
+					end
+
+					-- 2. Melee Touch Interests
+					if fireTouch then
+						for _, partName in ipairs(PRIORITY_PARTS) do
+							local enemyPart = pChar:FindFirstChild(partName)
+							if enemyPart and enemyPart:IsA("BasePart") and enemyPart.Parent then
+								for t = 1, #toolParts do
+									local toolPart = toolParts[t]
+									if toolPart and toolPart.Parent then
+										for _ = 1, TOUCH_BURST do
+											pcall(fireTouch, toolPart, enemyPart, 0)
+											pcall(fireTouch, toolPart, enemyPart, 1)
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- ============================================================================
+-- TOOL CACHING & HOOKING
+-- ============================================================================
+local function findFightRemote(tool: Tool): RemoteEvent?
+	local r = tool:FindFirstChild("FightEvent")
+	if r and r:IsA("RemoteEvent") then return r end
+	for _, o in ipairs(tool:GetChildren()) do
+		if o:IsA("RemoteEvent") then
+			local n = string.lower(o.Name)
+			if string.find(n, "fight", 1, true)
+				or string.find(n, "slap", 1, true)
+				or string.find(n, "hit", 1, true)
+				or string.find(n, "attack", 1, true)
+				or string.find(n, "combat", 1, true)
+				or string.find(n, "event", 1, true) then
+				return o
+			end
+		end
+	end
+	return nil
+end
+
+local function hookToolAttack(tool: Tool)
+	if toolConnections[tool] then
+		toolConnections[tool]:Disconnect()
+		toolConnections[tool] = nil
+	end
+
+	toolConnections[tool] = tool.Activated:Connect(function()
+		executeTargetStrike()
+	end)
+end
+
+local function rebuildToolParts()
+	table.clear(toolParts)
+	table.clear(toolRemotes)
+	table.clear(equippedTools)
+
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	for _, t in ipairs(char:GetChildren()) do
+		if t:IsA("Tool") then
+			table.insert(equippedTools, t)
+			hookToolAttack(t)
+
+			local handle = t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+			if handle and handle:IsA("BasePart") then
+				handle.CanCollide = false
+				handle.Massless = true
+				handle.CanTouch = true
+				if not table.find(toolParts, handle) then
+					table.insert(toolParts, handle)
+				end
+			end
+
+			local rem = findFightRemote(t)
+			if rem and not table.find(toolRemotes, rem) then
+				table.insert(toolRemotes, rem)
+			end
+		end
+	end
+end
+
+-- Screen tap / click trigger
+UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+	if gpe then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+		or input.KeyCode == Enum.KeyCode.ButtonR2 then
+		if #equippedTools > 0 and Active then
+			executeTargetStrike()
+		end
+	end
+end)
+
+local function hookCharacter(char: Model)
+	for _, conn in pairs(toolConnections) do
+		conn:Disconnect()
+	end
+	table.clear(toolConnections)
+
+	rebuildToolParts()
+	char.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			rebuildToolParts()
+			-- Frame-0 Instant Damage Burst upon Equip / Respawn
+			task.defer(function()
+				if Active then
+					executeTargetStrike()
+				end
+			end)
+		end
+	end)
+	char.ChildRemoved:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			task.defer(rebuildToolParts)
+		end
+	end)
+	if #equippedTools > 0 and Active then
+		task.defer(executeTargetStrike)
+	end
 end
 
 if LocalPlayer.Character then
-	updateCharacterRoot(LocalPlayer.Character)
+	hookCharacter(LocalPlayer.Character)
 end
-LocalPlayer.CharacterAdded:Connect(function(char)
-	updateCharacterRoot(char)
-	-- Frame-0 Instant claim upon spawn
-	if currentRoot and fireTouch then
-		for i = 1, #touchableParts do
-			local targetPart = touchableParts[i]
-			if targetPart and targetPart.Parent then
-				pcall(fireTouch, currentRoot, targetPart, 0)
-				pcall(fireTouch, currentRoot, targetPart, 1)
-			end
-		end
-	end
-	-- Fast 0.05s retry for streaming assets
-	task.delay(0.05, function()
-		if currentRoot and fireTouch then
-			for i = 1, #touchableParts do
-				local targetPart = touchableParts[i]
-				if targetPart and targetPart.Parent then
-					pcall(fireTouch, currentRoot, targetPart, 0)
-					pcall(fireTouch, currentRoot, targetPart, 1)
-				end
-			end
-		end
-	end)
-end)
-LocalPlayer.CharacterRemoving:Connect(function()
-	currentRoot = nil
-end)
+LocalPlayer.CharacterAdded:Connect(hookCharacter)
 
-local function fireAllTouches()
-	local root = currentRoot
-	if not (root and root.Parent) then return end
-	if not fireTouch then return end
-
-	for i = 1, #touchableParts do
-		local targetPart = touchableParts[i]
-		if targetPart and targetPart.Parent then
-			pcall(fireTouch, root, targetPart, 0)
-			pcall(fireTouch, root, targetPart, 1)
-		end
-	end
-end
-
-_G.GrabTools = fireAllTouches
-
--- Background low-frequency sweep (every 0.5s)
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
-	if now - lastSweepTime < SWEEP_INTERVAL then return end
-	lastSweepTime = now
-
-	if currentRoot and currentRoot.Parent and #touchableParts > 0 then
-		fireAllTouches()
+Players.PlayerRemoving:Connect(function(p)
+	TargetList[p] = nil
+	if DropdownList.Visible then
+		updateDropdown()
 	end
 end)
 
-print("⚡ [Tool Grabber] CIPHER // V7.0 Headless Loaded (Allowed Bases Only, Always Active).")
+Players.PlayerAdded:Connect(function()
+	if DropdownList.Visible then
+		updateDropdown()
+	end
+end)
+
+print("⚡ [Target Aura] CIPHER // V7.0 Cosmic Eternal Loaded.")
