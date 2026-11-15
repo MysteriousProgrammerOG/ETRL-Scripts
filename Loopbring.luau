@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // AGGRESSIVE LOOPBRING V5.0 (MODERN RESCRIPT)
 -- High-Performance Target Teleporter with Anti-Rubberband Physics & Sleek UI
