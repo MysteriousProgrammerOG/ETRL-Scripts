@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // TOOL REACH SELECTOR V4.0 (MODERN RESCRIPT)
 -- High-Performance Reach Extender with Dynamic Tool Selector & Safe UI
