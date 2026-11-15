@@ -1,12 +1,14 @@
 -- ============================================================================
--- CIPHER // USE TOOLS & COMBAT ENGINE V6.0 (MODERN RESCRIPT)
+-- CIPHER // USE TOOLS & COMBAT ENGINE V7.1 (COSMIC ETERNAL RESCRIPT)
 -- High-Performance Multi-Tool Auto-Equipper, Rapid Activator & Proximity Assist
+-- Lag-Free Architecture: Zero Network Backlog // Safe Remote Throttling
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
@@ -16,28 +18,28 @@ local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: a
 	or (syn and syn.firetouchinterest)
 
 -- ============================================================================
--- THEME & CONFIGURATION
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
 -- ============================================================================
 local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
 }
 
--- Settings
-local APS: number                = 60      -- Activations per second (10 - 200)
-local MAX_TOOLS: number          = 5       -- Concurrent equipped tools (1 - 10)
+-- Settings (Default 35 APS for butter-smooth speed without packet choke)
+local APS: number                = 35
+local MAX_TOOLS: number          = 5
 local TOUCH_ASSIST_RANGE: number = 24
 local TOUCH_ASSIST_SQ: number    = TOUCH_ASSIST_RANGE * TOUCH_ASSIST_RANGE
 
--- Modes: "Normal" (Activate only), "Event" (Remote only), "Max" (Both)
 local MODES = { "Normal", "Event", "Max" }
 local currentModeIndex: number = 1
 local Mode: string = "Normal"
@@ -56,6 +58,11 @@ type CachedTool = {
 local equippedCache: { CachedTool } = {}
 local isEquipping: boolean = false
 local pulseAccumulator: number = 0
+local lastRemoteFireTime: number = 0
+local lastEnemyScanTime: number = 0
+
+type EnemyTarget = { Root: BasePart, Character: Model }
+local cachedNearbyEnemies: { EnemyTarget } = {}
 
 -- ============================================================================
 -- SAFE GUI RESOLVER
@@ -84,7 +91,7 @@ if existing then
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT UI
+-- COSMIC LIQUID UI & MOBILE SCALING
 -- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CipherUseToolsUI"
@@ -94,34 +101,64 @@ ScreenGui.Parent = guiContainer
 
 local MainPanel = Instance.new("Frame")
 MainPanel.Name = "MainPanel"
-MainPanel.Size = UDim2.fromOffset(230, 178)
-MainPanel.Position = UDim2.new(1, -245, 0.45, -89)
-MainPanel.BackgroundColor3 = THEME.BgPrimary
-MainPanel.BackgroundTransparency = 0.08
+MainPanel.Size = UDim2.fromOffset(230, 180)
+MainPanel.Position = UDim2.new(1, -245, 0.45, -90)
+MainPanel.BackgroundColor3 = THEME.PanelBg
+MainPanel.BackgroundTransparency = 0.05
 MainPanel.BorderSizePixel = 0
 MainPanel.Active = true
 MainPanel.Parent = ScreenGui
 
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainPanel
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.CornerRadius = UDim.new(0, 9)
 MainCorner.Parent = MainPanel
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Thickness = 1
-MainStroke.Color = THEME.Border
+MainStroke.Thickness = 1.5
+MainStroke.Color = THEME.AccentPurple
 MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 MainStroke.Parent = MainPanel
 
--- Header / Drag Bar
+-- Cosmic Liquid Border Gradient
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = MainStroke
+
+-- Header
 local Header = Instance.new("Frame")
 Header.Name = "Header"
 Header.Size = UDim2.new(1, 0, 0, 22)
-Header.BackgroundColor3 = THEME.BgCard
+Header.BackgroundColor3 = THEME.CardBg
 Header.BorderSizePixel = 0
 Header.Parent = MainPanel
 
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.CornerRadius = UDim.new(0, 9)
 HeaderCorner.Parent = Header
 
 local HeaderTitle = Instance.new("TextLabel")
@@ -130,10 +167,25 @@ HeaderTitle.Position = UDim2.new(0, 8, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
 HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
-HeaderTitle.TextColor3 = THEME.Accent
+HeaderTitle.TextColor3 = THEME.TextWhite
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
 HeaderTitle.Text = "⚡ USE TOOLS // COMBAT [E]"
 HeaderTitle.Parent = Header
+
+-- Cosmic Liquid Flow on Text
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.TextWhite),
+	ColorSequenceKeypoint.new(0.35, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.70, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(1.00, THEME.TextWhite),
+})
+TitleGradient.Parent = HeaderTitle
+
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
+	TitleGradient.Rotation = (TitleGradient.Rotation + dt * 35) % 360
+end)
 
 local StatusDot = Instance.new("Frame")
 StatusDot.Size = UDim2.fromOffset(7, 7)
@@ -158,14 +210,13 @@ ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ContentLayout.Padding = UDim.new(0, 4)
 ContentLayout.Parent = Content
 
--- Button Helper
 local function createButton(text: string, height: number, order: number): TextButton
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 0, height)
-	btn.BackgroundColor3 = THEME.BgCard
+	btn.BackgroundColor3 = THEME.CardBg
 	btn.Font = Enum.Font.GothamBold
 	btn.TextSize = 10
-	btn.TextColor3 = THEME.TextMain
+	btn.TextColor3 = THEME.TextWhite
 	btn.Text = text
 	btn.AutoButtonColor = false
 	btn.LayoutOrder = order
@@ -177,31 +228,29 @@ local function createButton(text: string, height: number, order: number): TextBu
 
 	local s = Instance.new("UIStroke")
 	s.Thickness = 1
-	s.Color = THEME.BorderDim
+	s.Color = THEME.BorderDark
 	s.Parent = btn
 
 	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentDim}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.CardHover}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.BgCard}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.CardBg}):Play()
 	end)
 
 	return btn
 end
 
--- Primary Toggle Button
 local ToggleButton = createButton("STATUS: ACTIVE", 24, 1)
 ToggleButton.TextColor3 = THEME.ActiveGreen
 
--- Mode Selector Button
 local ModeButton = createButton("MODE: NORMAL [F]", 22, 2)
 
--- Stepper Row Factory
+-- Stepper Factory
 local function createStepperRow(title: string, order: number)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, 0, 0, 24)
-	row.BackgroundColor3 = THEME.BgCard
+	row.BackgroundColor3 = THEME.CardBg
 	row.LayoutOrder = order
 	row.Parent = Content
 
@@ -211,7 +260,7 @@ local function createStepperRow(title: string, order: number)
 
 	local rs = Instance.new("UIStroke")
 	rs.Thickness = 1
-	rs.Color = THEME.BorderDim
+	rs.Color = THEME.BorderDark
 	rs.Parent = row
 
 	local label = Instance.new("TextLabel")
@@ -228,10 +277,10 @@ local function createStepperRow(title: string, order: number)
 	local minusBtn = Instance.new("TextButton")
 	minusBtn.Size = UDim2.new(0, 20, 0, 18)
 	minusBtn.Position = UDim2.new(0.52, 0, 0.5, -9)
-	minusBtn.BackgroundColor3 = THEME.BgPrimary
+	minusBtn.BackgroundColor3 = THEME.PanelBg
 	minusBtn.Font = Enum.Font.GothamBold
 	minusBtn.TextSize = 12
-	minusBtn.TextColor3 = THEME.Accent
+	minusBtn.TextColor3 = THEME.AccentPurple
 	minusBtn.Text = "-"
 	minusBtn.AutoButtonColor = false
 	minusBtn.Parent = row
@@ -245,17 +294,17 @@ local function createStepperRow(title: string, order: number)
 	valLabel.BackgroundTransparency = 1
 	valLabel.Font = Enum.Font.Code
 	valLabel.TextSize = 10
-	valLabel.TextColor3 = THEME.TextMain
+	valLabel.TextColor3 = THEME.TextWhite
 	valLabel.Text = "0"
 	valLabel.Parent = row
 
 	local plusBtn = Instance.new("TextButton")
 	plusBtn.Size = UDim2.new(0, 20, 0, 18)
 	plusBtn.Position = UDim2.new(1, -24, 0.5, -9)
-	plusBtn.BackgroundColor3 = THEME.BgPrimary
+	plusBtn.BackgroundColor3 = THEME.PanelBg
 	plusBtn.Font = Enum.Font.GothamBold
 	plusBtn.TextSize = 12
-	plusBtn.TextColor3 = THEME.Accent
+	plusBtn.TextColor3 = THEME.AccentPurple
 	plusBtn.Text = "+"
 	plusBtn.AutoButtonColor = false
 	plusBtn.Parent = row
@@ -263,24 +312,27 @@ local function createStepperRow(title: string, order: number)
 	pc.CornerRadius = UDim.new(0, 4)
 	pc.Parent = plusBtn
 
-	return valLabel, minusBtn, plusBtn
+	return row, valLabel, minusBtn, plusBtn
 end
 
-local APSLabel, APSMinus, APSPlus = createStepperRow("RATE (APS)", 3)
-local ToolsLabel, ToolsMinus, ToolsPlus = createStepperRow("MAX TOOLS", 4)
+local _, apsVal, apsMinus, apsPlus = createStepperRow("Speed (APS)", 3)
+apsVal.Text = tostring(APS)
 
--- Sub-badge status
-local InfoBadge = Instance.new("TextLabel")
-InfoBadge.Size = UDim2.new(1, 0, 0, 16)
-InfoBadge.BackgroundTransparency = 1
-InfoBadge.Font = Enum.Font.Code
-InfoBadge.TextSize = 9
-InfoBadge.TextColor3 = THEME.TextMuted
-InfoBadge.Text = "// SPAM: ACTIVE • TOUCH: ON"
-InfoBadge.LayoutOrder = 5
-InfoBadge.Parent = Content
+local _, maxVal, maxMinus, maxPlus = createStepperRow("Max Weapons", 4)
+maxVal.Text = tostring(MAX_TOOLS)
 
--- Draggable implementation
+local InfoLabel = Instance.new("TextLabel")
+InfoLabel.Size = UDim2.new(1, 0, 0, 18)
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Font = Enum.Font.Gotham
+InfoLabel.TextSize = 9
+InfoLabel.TextColor3 = THEME.TextMuted
+InfoLabel.TextXAlignment = Enum.TextXAlignment.Center
+InfoLabel.Text = "Equipped: 0 | Proximity: Ready"
+InfoLabel.LayoutOrder = 5
+InfoLabel.Parent = Content
+
+-- Universal Draggable Implementation
 local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
 	local dragging = false
 	local dragStartPos = Vector2.zero
@@ -315,50 +367,21 @@ end
 
 setupDraggable(MainPanel, Header)
 
--- UI Sync
-local function updateUI()
-	if Active then
-		ToggleButton.Text = "STATUS: ACTIVE"
-		ToggleButton.TextColor3 = THEME.ActiveGreen
-		StatusDot.BackgroundColor3 = THEME.ActiveGreen
-		MainStroke.Color = THEME.Border
-	else
-		ToggleButton.Text = "STATUS: STANDBY [E]"
-		ToggleButton.TextColor3 = THEME.TextMuted
-		StatusDot.BackgroundColor3 = THEME.BorderDim
-		MainStroke.Color = THEME.BorderDim
-	end
-
-	Mode = MODES[currentModeIndex]
-	ModeButton.Text = string.format("MODE: %s [F]", string.upper(Mode))
-	APSLabel.Text = string.format("%d/s", APS)
-	ToolsLabel.Text = string.format("%d", MAX_TOOLS)
-end
-
 -- ============================================================================
 -- TOOL CACHING & FAST EQUIP LOGIC
 -- ============================================================================
 local function findFightRemote(tool: Tool): RemoteEvent?
 	local r = tool:FindFirstChild("FightEvent")
 	if r and r:IsA("RemoteEvent") then return r end
-	for _, child in ipairs(tool:GetChildren()) do
-		if child:IsA("RemoteEvent") then
-			local n = string.lower(child.Name)
+	for _, o in ipairs(tool:GetChildren()) do
+		if o:IsA("RemoteEvent") then
+			local n = string.lower(o.Name)
 			if string.find(n, "fight", 1, true) or string.find(n, "slap", 1, true) or string.find(n, "hit", 1, true) then
-				return child
+				return o
 			end
 		end
 	end
 	return nil
-end
-
-local function sanitizeToolPhysics(tool: Tool)
-	local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-	if handle and handle:IsA("BasePart") then
-		handle.CanCollide = false
-		handle.Massless = true
-		handle.CanTouch = true
-	end
 end
 
 local function rebuildEquippedCache()
@@ -366,148 +389,246 @@ local function rebuildEquippedCache()
 	local char = LocalPlayer.Character
 	if not char then return end
 
-	for _, child in ipairs(char:GetChildren()) do
-		if child:IsA("Tool") then
-			sanitizeToolPhysics(child)
-			local handle = child:FindFirstChild("Handle") or child:FindFirstChildWhichIsA("BasePart")
-			local rem = findFightRemote(child)
+	for _, item in ipairs(char:GetChildren()) do
+		if item:IsA("Tool") then
+			local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
+			local bpHandle = if handle and handle:IsA("BasePart") then handle else nil
+			local rem = findFightRemote(item)
 			table.insert(equippedCache, {
-				Tool = child,
-				Handle = (handle and handle:IsA("BasePart")) and handle or nil,
+				Tool = item,
+				Handle = bpHandle,
 				Remote = rem,
 			})
-			if #equippedCache >= MAX_TOOLS then
-				break
-			end
 		end
 	end
+
+	InfoLabel.Text = string.format("Equipped: %d/%d | Mode: %s", #equippedCache, MAX_TOOLS, Mode)
 end
 
-local function fastEquipTools()
-	if not Active or isEquipping then return end
+local function fastEquipAll()
+	if isEquipping then return end
 	isEquipping = true
 
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	local char = LocalPlayer.Character
-	local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-
-	if char and bp then
+	if backpack and char then
 		local hum = char:FindFirstChildOfClass("Humanoid")
 		if hum and hum.Health > 0 then
-			local equippedCount = 0
-			for _, c in ipairs(char:GetChildren()) do
-				if c:IsA("Tool") then
-					equippedCount += 1
+			local currentEquipped = 0
+			for _, item in ipairs(char:GetChildren()) do
+				if item:IsA("Tool") then
+					currentEquipped += 1
 				end
 			end
 
-			-- Move tools from Backpack to Character
-			if equippedCount < MAX_TOOLS then
-				local needed = MAX_TOOLS - equippedCount
-				for _, tool in ipairs(bp:GetChildren()) do
-					if tool:IsA("Tool") then
-						sanitizeToolPhysics(tool)
-						tool.Parent = char
-						needed -= 1
-						if needed <= 0 then break end
+			local needed = MAX_TOOLS - currentEquipped
+			if needed > 0 then
+				local toolsToEquip: { Tool } = {}
+				for _, item in ipairs(backpack:GetChildren()) do
+					if item:IsA("Tool") then
+						table.insert(toolsToEquip, item)
+						if #toolsToEquip >= needed then break end
 					end
+				end
+
+				for i = 1, #toolsToEquip do
+					toolsToEquip[i].Parent = char
 				end
 			end
 		end
 	end
 
-	rebuildEquippedCache()
 	isEquipping = false
+	rebuildEquippedCache()
 end
 
--- FastEquip Hook for Respawn synergy
-_G.Guide = fastEquipTools
-_G.FastEquip = fastEquipTools
-if typeof(getgenv) == "function" then
-	pcall(function()
-		getgenv().Guide = fastEquipTools
-	end)
-end
+_G.Guide = fastEquipAll
+_G.FastEquip = fastEquipAll
 
 -- ============================================================================
--- ATTACK PULSE & PROXIMITY TOUCH ASSIST
+-- PING-SAFE THROTTLED COMBAT ENGINE
 -- ============================================================================
-local function pulseCombat()
+-- Scan nearby enemies at 10 Hz (eliminates per-frame distance calculations)
+local function refreshNearbyEnemies()
+	table.clear(cachedNearbyEnemies)
 	local char = LocalPlayer.Character
-	if not char or #equippedCache == 0 then return end
+	if not char then return end
 
-	-- 1. Tool Activation & Remote Dispatch
+	local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+	if not (myRoot and myRoot:IsA("BasePart")) then return end
+	local myPos = myRoot.Position
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer and p.Character then
+			local hum = p.Character:FindFirstChildOfClass("Humanoid")
+			local r = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso")
+			if hum and r and r:IsA("BasePart") and hum.Health > 0 then
+				local dx = r.Position.X - myPos.X
+				local dy = r.Position.Y - myPos.Y
+				local dz = r.Position.Z - myPos.Z
+				if (dx * dx + dy * dy + dz * dz) <= TOUCH_ASSIST_SQ then
+					table.insert(cachedNearbyEnemies, { Root = r, Character = p.Character })
+				end
+			end
+		end
+	end
+end
+
+local function pulseCombat()
+	if not Active or #equippedCache == 0 then return end
+	local now = os.clock()
+
+	-- Refresh enemy cache every 0.1s
+	if now - lastEnemyScanTime >= 0.1 then
+		lastEnemyScanTime = now
+		refreshNearbyEnemies()
+	end
+
+	local shouldFireRemote = (now - lastRemoteFireTime) >= 0.05 -- Max 20 Hz remote packet rate (prevents packet drop)
+	if shouldFireRemote then
+		lastRemoteFireTime = now
+	end
+
 	for i = 1, #equippedCache do
 		local entry = equippedCache[i]
 		local tool = entry.Tool
-		if tool and tool.Parent == char then
-			if Mode == "Normal" or Mode == "Max" then
-				pcall(tool.Activate, tool)
-			end
-			if (Mode == "Event" or Mode == "Max") and entry.Remote and entry.Remote.Parent then
-				pcall(entry.Remote.FireServer, entry.Remote)
+
+		-- 1. Normal Activation (Client-side, high speed, zero ping impact)
+		if Mode == "Normal" or Mode == "Max" then
+			pcall(tool.Activate, tool)
+		end
+
+		-- 2. Remote Fire (Cleanly throttled to match server replication rate)
+		if shouldFireRemote and (Mode == "Event" or Mode == "Max") then
+			local rem = entry.Remote
+			if rem and rem.Parent then
+				if #cachedNearbyEnemies > 0 then
+					for e = 1, math.min(#cachedNearbyEnemies, 3) do
+						pcall(rem.FireServer, rem, cachedNearbyEnemies[e].Root)
+					end
+				else
+					pcall(rem.FireServer, rem)
+				end
 			end
 		end
-	end
 
-	-- 2. Proximity Touch Assist
-	if fireTouch then
-		local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-		if root and root:IsA("BasePart") then
-			local myPos = root.Position
-
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer then
-					local pChar = player.Character
-					if pChar then
-						local hum = pChar:FindFirstChildOfClass("Humanoid")
-						local pRoot = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
-						if hum and hum.Health > 0 and pRoot and pRoot:IsA("BasePart") then
-							local diff = pRoot.Position - myPos
-							if (diff.X * diff.X + diff.Y * diff.Y + diff.Z * diff.Z) <= TOUCH_ASSIST_SQ then
-								for i = 1, #equippedCache do
-									local handle = equippedCache[i].Handle
-									if handle and handle.Parent then
-										pcall(fireTouch, handle, pRoot, 0)
-										pcall(fireTouch, handle, pRoot, 1)
-									end
-								end
-							end
-						end
-					end
+		-- 3. Touch Assist (Precision touch interest)
+		if fireTouch and entry.Handle and #cachedNearbyEnemies > 0 then
+			local h = entry.Handle
+			for e = 1, math.min(#cachedNearbyEnemies, 2) do
+				local enemyRoot = cachedNearbyEnemies[e].Root
+				if enemyRoot and enemyRoot.Parent then
+					pcall(fireTouch, h, enemyRoot, 0)
+					pcall(fireTouch, h, enemyRoot, 1)
 				end
 			end
 		end
 	end
 end
 
--- Smooth delta-accumulated clock loop
 RunService.Heartbeat:Connect(function(dt: number)
 	if not Active then return end
 
+	local pulseInterval = 1 / APS
 	pulseAccumulator += dt
-	local targetInterval = 1 / math.clamp(APS, 10, 200)
 
-	if pulseAccumulator >= targetInterval then
-		pulseAccumulator %= targetInterval
+	if pulseAccumulator >= pulseInterval then
+		pulseAccumulator = 0
 		pulseCombat()
 	end
 end)
 
--- Character & Backpack monitoring
+-- UI Interactions
+local function updateUI()
+	if Active then
+		ToggleButton.Text = "STATUS: ACTIVE"
+		ToggleButton.TextColor3 = THEME.ActiveGreen
+		StatusDot.BackgroundColor3 = THEME.ActiveGreen
+	else
+		ToggleButton.Text = "STATUS: OFF [E]"
+		ToggleButton.TextColor3 = THEME.TextMuted
+		StatusDot.BackgroundColor3 = THEME.BorderDark
+	end
+	ModeButton.Text = string.format("MODE: %s [F]", string.upper(Mode))
+	InfoLabel.Text = string.format("Equipped: %d/%d | Mode: %s", #equippedCache, MAX_TOOLS, Mode)
+end
+
+local function toggleActive()
+	Active = not Active
+	if Active then
+		fastEquipAll()
+	end
+	updateUI()
+end
+
+local function cycleMode()
+	currentModeIndex = (currentModeIndex % #MODES) + 1
+	Mode = MODES[currentModeIndex]
+	updateUI()
+end
+
+ToggleButton.MouseButton1Click:Connect(toggleActive)
+ModeButton.MouseButton1Click:Connect(cycleMode)
+
+apsMinus.MouseButton1Click:Connect(function()
+	APS = math.clamp(APS - 5, 10, 100)
+	apsVal.Text = tostring(APS)
+end)
+
+apsPlus.MouseButton1Click:Connect(function()
+	APS = math.clamp(APS + 5, 10, 100)
+	apsVal.Text = tostring(APS)
+end)
+
+maxMinus.MouseButton1Click:Connect(function()
+	MAX_TOOLS = math.clamp(MAX_TOOLS - 1, 1, 10)
+	maxVal.Text = tostring(MAX_TOOLS)
+	fastEquipAll()
+end)
+
+maxPlus.MouseButton1Click:Connect(function()
+	MAX_TOOLS = math.clamp(MAX_TOOLS + 1, 1, 10)
+	maxVal.Text = tostring(MAX_TOOLS)
+	fastEquipAll()
+end)
+
+UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+	if gpe then return end
+	if input.KeyCode == KEY_TOGGLE then
+		toggleActive()
+	elseif input.KeyCode == KEY_MODE then
+		cycleMode()
+	end
+end)
+
+local function hookBackpack(backpack: Backpack)
+	backpack.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Tool") and Active then
+			task.defer(fastEquipAll)
+		end
+	end)
+end
+
 local function hookCharacter(char: Model)
-	task.defer(fastEquipTools)
-
-	char.ChildAdded:Connect(function(c)
-		if c:IsA("Tool") then
-			rebuildEquippedCache()
+	rebuildEquippedCache()
+	char.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			task.defer(rebuildEquippedCache)
 		end
 	end)
-
-	char.ChildRemoved:Connect(function(c)
-		if c:IsA("Tool") then
-			task.defer(fastEquipTools)
+	char.ChildRemoved:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			task.defer(function()
+				rebuildEquippedCache()
+				if Active then
+					fastEquipAll()
+				end
+			end)
 		end
 	end)
+	if Active then
+		task.defer(fastEquipAll)
+	end
 end
 
 if LocalPlayer.Character then
@@ -516,70 +637,12 @@ end
 LocalPlayer.CharacterAdded:Connect(hookCharacter)
 
 local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-if bp then
-	bp.ChildAdded:Connect(function(c)
-		if c:IsA("Tool") then
-			task.defer(fastEquipTools)
-		end
-	end)
-end
-LocalPlayer.ChildAdded:Connect(function(c)
-	if c:IsA("Backpack") then
-		c.ChildAdded:Connect(function(tool)
-			if tool:IsA("Tool") then
-				task.defer(fastEquipTools)
-			end
-		end)
-	end
-end)
-
--- UI Actions
-local function toggleActive()
-	Active = not Active
-	if Active then
-		fastEquipTools()
-	end
-	updateUI()
-end
-
-ToggleButton.MouseButton1Click:Connect(toggleActive)
-
-ModeButton.MouseButton1Click:Connect(function()
-	currentModeIndex = (currentModeIndex % #MODES) + 1
-	updateUI()
-end)
-
-APSMinus.MouseButton1Click:Connect(function()
-	APS = math.clamp(APS - 10, 10, 200)
-	updateUI()
-end)
-
-APSPlus.MouseButton1Click:Connect(function()
-	APS = math.clamp(APS + 10, 10, 200)
-	updateUI()
-end)
-
-ToolsMinus.MouseButton1Click:Connect(function()
-	MAX_TOOLS = math.clamp(MAX_TOOLS - 1, 1, 10)
-	fastEquipTools()
-	updateUI()
-end)
-
-ToolsPlus.MouseButton1Click:Connect(function()
-	MAX_TOOLS = math.clamp(MAX_TOOLS + 1, 1, 10)
-	fastEquipTools()
-	updateUI()
-end)
-
-UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
-	if gpe then return end
-	if input.KeyCode == KEY_TOGGLE then
-		toggleActive()
-	elseif input.KeyCode == KEY_MODE then
-		currentModeIndex = (currentModeIndex % #MODES) + 1
-		updateUI()
+if bp then hookBackpack(bp) end
+LocalPlayer.ChildAdded:Connect(function(child: Instance)
+	if child:IsA("Backpack") then
+		hookBackpack(child)
 	end
 end)
 
 updateUI()
-print("[Use Tools] CIPHER // USE TOOLS COMBAT ENGINE V6.0 Loaded.")
+print("⚡ [Use Tools] CIPHER // V7.1 Cosmic Eternal Loaded (Ping-Safe Throttle).")
