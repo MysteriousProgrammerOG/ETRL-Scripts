@@ -1,11 +1,13 @@
 -- ============================================================================
--- CIPHER // FAST RESPAWN ENGINE V6.0 (MODERN RESCRIPT)
--- Pre-Emptive Lethal-Damage Monitor & Rapid Recovery Dispatcher
+-- CIPHER // FAST RESPAWN ENGINE V6.1 (MODERN RESCRIPT)
+-- Guaranteed Guide() Remote Detection & Ultra-Early Death Insta-Spawn
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
@@ -27,9 +29,9 @@ local THEME = {
 }
 
 local TOGGLE_KEY: Enum.KeyCode = Enum.KeyCode.R
-local HEALTH_THRESHOLD: number = 40    -- Triggers when HP drops below 40
-local BURST_DROP_THRESHOLD: number = 15 -- Triggers on sudden >= 15 burst damage
-local MIN_FIRE_INTERVAL: number = 0.5   -- Debounce to prevent remote spam
+local HEALTH_THRESHOLD: number = 40     -- Early trigger threshold
+local BURST_DROP_THRESHOLD: number = 15  -- Sudden frame damage drop threshold
+local MIN_RETRIGGER_DELAY: number = 0.25 -- Minimal debounce between pulses
 
 local Active: boolean          = true
 local isFiring: boolean        = false
@@ -37,6 +39,9 @@ local lastRequestTime: number  = 0
 local characterToken: number   = 0
 local lastObservedHealth: number = 100
 local activeCharConns: { RBXScriptConnection } = {}
+
+-- Caches for Guide() and Respawn remotes
+local guideRemotes: { Instance } = {}
 
 local function disconnectCharConns()
 	for _, c in ipairs(activeCharConns) do
@@ -84,8 +89,8 @@ ScreenGui.Parent = guiContainer
 
 local MainCard = Instance.new("Frame")
 MainCard.Name = "MainCard"
-MainCard.Size = UDim2.fromOffset(230, 62)
-MainCard.Position = UDim2.new(1, -245, 0.65, 0)
+MainCard.Size = UDim2.fromOffset(240, 78)
+MainCard.Position = UDim2.new(1, -255, 0.65, 0)
 MainCard.BackgroundColor3 = THEME.BgPrimary
 MainCard.BackgroundTransparency = 0.08
 MainCard.BorderSizePixel = 0
@@ -122,7 +127,7 @@ HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
 HeaderTitle.TextColor3 = THEME.Accent
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Text = "⚡ FAST RESPAWN [R]"
+HeaderTitle.Text = "⚡ FAST RESPAWN // GUIDE() [R]"
 HeaderTitle.Parent = Header
 
 local StatusDot = Instance.new("Frame")
@@ -136,29 +141,66 @@ local DotCorner = Instance.new("UICorner")
 DotCorner.CornerRadius = UDim.new(1, 0)
 DotCorner.Parent = StatusDot
 
--- Interactive Toggle Button
+-- Action Row (Toggle + Manual Test Respawn)
+local ActionRow = Instance.new("Frame")
+ActionRow.Size = UDim2.new(1, -14, 0, 26)
+ActionRow.Position = UDim2.new(0, 7, 0, 26)
+ActionRow.BackgroundTransparency = 1
+ActionRow.Parent = MainCard
+
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
-ToggleButton.Size = UDim2.new(1, -14, 0, 28)
-ToggleButton.Position = UDim2.new(0, 7, 0, 26)
+ToggleButton.Size = UDim2.new(0.68, -4, 1, 0)
+ToggleButton.Position = UDim2.new(0, 0, 0, 0)
 ToggleButton.BackgroundColor3 = THEME.BgCard
 ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextSize = 11
+ToggleButton.TextSize = 10
 ToggleButton.TextColor3 = THEME.ActiveGreen
-ToggleButton.Text = "RESPAWN: ACTIVE // <40 HP"
+ToggleButton.Text = "RESPAWN: ACTIVE"
 ToggleButton.AutoButtonColor = false
-ToggleButton.Parent = MainCard
+ToggleButton.Parent = ActionRow
 
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 6)
-BtnCorner.Parent = ToggleButton
+local TbCorner = Instance.new("UICorner")
+TbCorner.CornerRadius = UDim.new(0, 6)
+TbCorner.Parent = ToggleButton
 
-local BtnStroke = Instance.new("UIStroke")
-BtnStroke.Thickness = 1
-BtnStroke.Color = THEME.Border
-BtnStroke.Transparency = 0.5
-BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-BtnStroke.Parent = ToggleButton
+local TbStroke = Instance.new("UIStroke")
+TbStroke.Thickness = 1
+TbStroke.Color = THEME.Border
+TbStroke.Transparency = 0.5
+TbStroke.Parent = ToggleButton
+
+local TestBtn = Instance.new("TextButton")
+TestBtn.Name = "TestBtn"
+TestBtn.Size = UDim2.new(0.32, 0, 1, 0)
+TestBtn.Position = UDim2.new(0.68, 0, 0, 0)
+TestBtn.BackgroundColor3 = THEME.BgCard
+TestBtn.Font = Enum.Font.GothamBold
+TestBtn.TextSize = 10
+TestBtn.TextColor3 = THEME.TextMain
+TestBtn.Text = "SPAWN"
+TestBtn.AutoButtonColor = false
+TestBtn.Parent = ActionRow
+
+local TestCorner = Instance.new("UICorner")
+TestCorner.CornerRadius = UDim.new(0, 6)
+TestCorner.Parent = TestBtn
+
+local TestStroke = Instance.new("UIStroke")
+TestStroke.Thickness = 1
+TestStroke.Color = THEME.BorderDim
+TestStroke.Parent = TestBtn
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -14, 0, 18)
+StatusLabel.Position = UDim2.new(0, 7, 0, 54)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 9
+StatusLabel.TextColor3 = THEME.TextMuted
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Text = "Remotes: [Scanning for Guide()]"
+StatusLabel.Parent = MainCard
 
 -- Draggable implementation
 local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
@@ -195,17 +237,191 @@ end
 
 setupDraggable(MainCard, Header)
 
--- Hover effect
-ToggleButton.MouseEnter:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.AccentDim}):Play()
-end)
-ToggleButton.MouseLeave:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.BgCard}):Play()
+-- ============================================================================
+-- GUIDE() & RESPAWN REMOTE DISCOVERY (ALL CONTAINERS)
+-- ============================================================================
+local function evaluateRemote(inst: Instance)
+	if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+		local n = string.lower(inst.Name)
+		if n == "guide"
+			or string.find(n, "guide", 1, true)
+			or string.find(n, "respawn", 1, true)
+			or string.find(n, "loadchar", 1, true)
+			or string.find(n, "spawn", 1, true) then
+			if not table.find(guideRemotes, inst) then
+				table.insert(guideRemotes, inst)
+				StatusLabel.Text = string.format("Guide Remotes: %d Active // Watching HP", #guideRemotes)
+				StatusLabel.TextColor3 = THEME.ActiveGreen
+			end
+		end
+	end
+end
+
+local function discoverAllRemotes()
+	table.clear(guideRemotes)
+
+	-- 1. Direct search in ReplicatedStorage
+	for _, inst in ipairs(ReplicatedStorage:GetDescendants()) do
+		evaluateRemote(inst)
+	end
+
+	-- 2. Direct search in Workspace
+	for _, inst in ipairs(Workspace:GetDescendants()) do
+		evaluateRemote(inst)
+	end
+
+	-- 3. Search in LocalPlayer (Backpack, PlayerGui, PlayerScripts)
+	for _, inst in ipairs(LocalPlayer:GetDescendants()) do
+		evaluateRemote(inst)
+	end
+
+	if #guideRemotes > 0 then
+		StatusLabel.Text = string.format("Guide Remotes: %d Active // Watching HP", #guideRemotes)
+		StatusLabel.TextColor3 = THEME.ActiveGreen
+	else
+		StatusLabel.Text = "Remotes: Guide() searching..."
+		StatusLabel.TextColor3 = THEME.TextMuted
+	end
+end
+
+discoverAllRemotes()
+
+ReplicatedStorage.DescendantAdded:Connect(evaluateRemote)
+Workspace.DescendantAdded:Connect(evaluateRemote)
+
+-- ============================================================================
+-- INSTA-SPAWN GUIDE DISPATCHER
+-- ============================================================================
+local function fireRespawn()
+	local now = os.clock()
+	if now - lastRequestTime < MIN_RETRIGGER_DELAY then return end
+	lastRequestTime = now
+	isFiring = true
+
+	print("[Respawn] Early death triggered! Firing Guide() remote to insta-spawn character.")
+
+	-- 1. Directly fire all discovered Guide / Respawn remotes with multiple payload signatures
+	if #guideRemotes == 0 then
+		discoverAllRemotes()
+	end
+
+	for _, r in ipairs(guideRemotes) do
+		if r and r.Parent then
+			task.spawn(function()
+				if r:IsA("RemoteEvent") then
+					pcall(r.FireServer, r)
+					pcall(r.FireServer, r, LocalPlayer)
+					pcall(r.FireServer, r, "Respawn")
+					pcall(r.FireServer, r, true)
+				elseif r:IsA("RemoteFunction") then
+					pcall(r.InvokeServer, r)
+					pcall(r.InvokeServer, r, LocalPlayer)
+				end
+			end)
+		end
+	end
+
+	-- 2. Direct fallback find if remote is named "Guide"
+	local directGuide = ReplicatedStorage:FindFirstChild("Guide", true) 
+		or Workspace:FindFirstChild("Guide", true)
+	if directGuide then
+		task.spawn(function()
+			if directGuide:IsA("RemoteEvent") then
+				pcall(directGuide.FireServer, directGuide)
+			elseif directGuide:IsA("RemoteFunction") then
+				pcall(directGuide.InvokeServer, directGuide)
+			end
+		end)
+	end
+
+	-- 3. Call fast-equip hook (Guide() in Use Tools or environment)
+	pcall(function()
+		local g = _G.Guide or _G.FastEquip
+		if typeof(g) == "function" then
+			task.spawn(g)
+		end
+		local genv = typeof(getgenv) == "function" and getgenv()
+		if genv and typeof(genv.Guide) == "function" then
+			task.spawn(genv.Guide)
+		end
+	end)
+
+	task.delay(0.2, function()
+		isFiring = false
+	end)
+end
+
+-- ============================================================================
+-- ULTRA-EARLY HEALTH DROP & DEATH MONITOR
+-- ============================================================================
+local function hookCharacter(char: Model)
+	characterToken += 1
+	local myToken = characterToken
+	disconnectCharConns()
+
+	local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
+	if not (hum and hum:IsA("Humanoid")) then return end
+
+	lastObservedHealth = hum.Health
+
+	local function checkAndTrigger(currentHp: number, cause: string)
+		if not Active then return end
+		if characterToken ~= myToken then return end
+
+		local drop = lastObservedHealth - currentHp
+		lastObservedHealth = currentHp
+
+		-- Triggers on:
+		-- 1. Any health <= 0 (instant death)
+		-- 2. Health drops below threshold (<= 40)
+		-- 3. Sudden lethal burst damage (drop >= 15 in one frame)
+		-- 4. Died / Ragdoll / FallingDown states
+		if currentHp <= 0 or currentHp <= HEALTH_THRESHOLD or drop >= BURST_DROP_THRESHOLD or cause == "Died" or cause == "State" then
+			fireRespawn()
+		end
+	end
+
+	-- Event 1: HealthChanged (fires immediately upon damage)
+	table.insert(activeCharConns, hum.HealthChanged:Connect(function(hp: number)
+		checkAndTrigger(hp, "HealthChanged")
+	end))
+
+	-- Event 2: Humanoid.Died (native engine death signal)
+	table.insert(activeCharConns, hum.Died:Connect(function()
+		checkAndTrigger(0, "Died")
+	end))
+
+	-- Event 3: StateChanged (detects ragdoll or death state before health reaches 0)
+	table.insert(activeCharConns, hum.StateChanged:Connect(function(_, newState)
+		if newState == Enum.HumanoidStateType.Dead
+			or newState == Enum.HumanoidStateType.Ragdoll
+			or newState == Enum.HumanoidStateType.FallingDown then
+			checkAndTrigger(hum.Health, "State")
+		end
+	end))
+end
+
+-- Per-Frame Microsecond Heartbeat Watchdog
+-- Guarantees early trigger even if custom scripts disconnect or delay Died events
+RunService.Heartbeat:Connect(function()
+	if not Active then return end
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if hum then
+		if hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then
+			fireRespawn()
+		elseif hum.Health <= HEALTH_THRESHOLD then
+			fireRespawn()
+		end
+	end
 end)
 
+-- UI Sync
 local function updateUI()
 	if Active then
-		ToggleButton.Text = "RESPAWN: ACTIVE // <40 HP"
+		ToggleButton.Text = "RESPAWN: ACTIVE"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
 		StatusDot.BackgroundColor3 = THEME.ActiveGreen
 		CardStroke.Color = THEME.Border
@@ -215,128 +431,6 @@ local function updateUI()
 		StatusDot.BackgroundColor3 = THEME.BorderDim
 		CardStroke.Color = THEME.BorderDim
 	end
-end
-
--- ============================================================================
--- TARGETED RESPAWN REMOTE CACHING
--- ============================================================================
-local cachedRemotes: { RemoteEvent } = {}
-
-local function checkRemote(inst: Instance)
-	if inst:IsA("RemoteEvent") then
-		local n = string.lower(inst.Name)
-		if string.find(n, "respawn", 1, true)
-			or string.find(n, "reset", 1, true)
-			or string.find(n, "death", 1, true)
-			or string.find(n, "spawn", 1, true) then
-			if not table.find(cachedRemotes, inst) then
-				table.insert(cachedRemotes, inst)
-			end
-		end
-	end
-end
-
--- Scan top-level and common remote folders in ReplicatedStorage without scanning all map geometry
-local function discoverRemotes()
-	table.clear(cachedRemotes)
-	for _, child in ipairs(ReplicatedStorage:GetChildren()) do
-		checkRemote(child)
-		if child:IsA("Folder") or child:IsA("Configuration") then
-			for _, sub in ipairs(child:GetChildren()) do
-				checkRemote(sub)
-			end
-		end
-	end
-end
-
-discoverRemotes()
-
--- ============================================================================
--- RESPAWN EXECUTION LOGIC
--- ============================================================================
-local function fireRespawn()
-	if isFiring then return end
-	local now = os.clock()
-	if now - lastRequestTime < MIN_FIRE_INTERVAL then return end
-
-	isFiring = true
-	lastRequestTime = now
-	characterToken += 1
-	disconnectCharConns()
-
-	-- 1. Trigger Guide() or FastEquip if exposed by Use Tools
-	pcall(function()
-		local genv = typeof(getgenv) == "function" and getgenv()
-		if genv and typeof(genv.Guide) == "function" then
-			task.spawn(genv.Guide)
-		end
-	end)
-
-	-- 2. Dispatch to discovered respawn remotes
-	for _, r in ipairs(cachedRemotes) do
-		if r and r.Parent then
-			task.spawn(function()
-				pcall(r.FireServer, r)
-			end)
-		end
-	end
-
-	-- 3. Reset local humanoid to trigger instant respawn
-	task.spawn(function()
-		local char = LocalPlayer.Character
-		if char then
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			if hum and hum.Health > 0 then
-				hum.Health = 0
-			end
-		end
-	end)
-
-	task.delay(0.5, function()
-		isFiring = false
-	end)
-end
-
--- ============================================================================
--- HEALTH & STATE MONITOR
--- ============================================================================
-local function hookCharacter(char: Model)
-	characterToken += 1
-	local myToken = characterToken
-	disconnectCharConns()
-
-	local hum = char:WaitForChild("Humanoid", 5)
-	if not (hum and hum:IsA("Humanoid")) then return end
-
-	lastObservedHealth = hum.Health
-	local triggered = false
-
-	local function trigger()
-		if triggered then return end
-		if not Active then return end
-		if characterToken ~= myToken then return end
-		triggered = true
-		fireRespawn()
-	end
-
-	table.insert(activeCharConns, hum.HealthChanged:Connect(function(hp: number)
-		local drop = lastObservedHealth - hp
-		lastObservedHealth = hp
-
-		if hp <= HEALTH_THRESHOLD or drop >= BURST_DROP_THRESHOLD then
-			trigger()
-		end
-	end))
-
-	table.insert(activeCharConns, hum.StateChanged:Connect(function(_, newState: Enum.HumanoidStateType)
-		if newState == Enum.HumanoidStateType.Dead
-			or newState == Enum.HumanoidStateType.Ragdoll
-			or newState == Enum.HumanoidStateType.FallingDown then
-			trigger()
-		end
-	end))
-
-	table.insert(activeCharConns, hum.Died:Connect(trigger))
 end
 
 local function toggleActive()
@@ -353,6 +447,15 @@ end
 
 ToggleButton.MouseButton1Click:Connect(toggleActive)
 
+-- Manual Spawn / Test Button
+TestBtn.MouseButton1Click:Connect(function()
+	fireRespawn()
+	TweenService:Create(TestBtn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentDim}):Play()
+	task.delay(0.15, function()
+		TweenService:Create(TestBtn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.BgCard}):Play()
+	end)
+end)
+
 UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	if gpe then return end
 	if input.KeyCode == TOGGLE_KEY then
@@ -363,7 +466,11 @@ end)
 if LocalPlayer.Character then
 	hookCharacter(LocalPlayer.Character)
 end
-LocalPlayer.CharacterAdded:Connect(hookCharacter)
+LocalPlayer.CharacterAdded:Connect(function(char)
+	task.defer(function()
+		hookCharacter(char)
+	end)
+end)
 
 updateUI()
-print("[Respawn] CIPHER // FAST RESPAWN V6.0 Loaded.")
+print("[Respawn] CIPHER // FAST RESPAWN V6.1 Loaded (Guide() Insta-Spawn Active).")
