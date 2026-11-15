@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // USE TOOLS & COMBAT ENGINE V6.0 (MODERN RESCRIPT)
 -- High-Performance Multi-Tool Auto-Equipper, Rapid Activator & Proximity Assist
