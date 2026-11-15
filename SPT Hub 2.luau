@@ -1,7 +1,5 @@
---!strict
 -- ============================================================================
--- SPT HUB // ETERNAL COSMIC EDITION (MODERN LIGHTWEIGHT RESCRIPT)
--- High-Performance Cosmic Hub with Animated Flowing Borders & Starfield
+-- ETERNAL SPT HUB //
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -12,7 +10,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
 -- ============================================================================
--- ETERNAL COSMIC THEME (PURPLE & BLACK PALETTE)
+-- THEME
 -- ============================================================================
 local THEME = {
 	VoidBg          = Color3.fromRGB(10, 8, 16),        -- Deep Cosmic Space
@@ -30,7 +28,7 @@ local THEME = {
 }
 
 -- ============================================================================
--- SAFE GUI RESOLVER (Studio PlayerGui or Elevated CoreGui)
+-- GUI RESOLVER
 -- ============================================================================
 local function getGuiContainer(): Instance
 	local success, core = pcall(function()
@@ -99,7 +97,7 @@ OrbGlowGradient.Color = ColorSequence.new({
 OrbGlowGradient.Parent = OrbStroke
 
 -- ============================================================================
--- MAIN ETERNAL HUB FRAME
+-- MAIN HUB FRAME
 -- ============================================================================
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -143,7 +141,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 end)
 
 -- ============================================================================
--- COSMIC STARFIELD BACKGROUND (ETERNAL THEME)
+-- BACKGROUND
 -- ============================================================================
 local CosmicBackdrop = Instance.new("Frame")
 CosmicBackdrop.Name = "CosmicBackdrop"
@@ -298,7 +296,7 @@ CloseButton.MouseLeave:Connect(function()
 end)
 
 -- ============================================================================
--- SIDEBAR NAVIGATION (LEFT COLUMN)
+-- SIDEBAR NAVIGATION
 -- ============================================================================
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
@@ -370,7 +368,7 @@ PageViewContainer.ZIndex = 2
 PageViewContainer.Parent = ContentArea
 
 -- ============================================================================
--- PAGES SYSTEM IN EXACT REQUESTED ORDER:
+-- PAGES IN ORDER:
 -- 1. Updates
 -- 2. Welcome
 -- 3. Tool Scripts
@@ -378,6 +376,7 @@ PageViewContainer.Parent = ContentArea
 -- 5. Misc Scripts
 -- 6. Settings
 -- ============================================================================
+
 local PAGE_NAMES = {
 	"Updates",
 	"Welcome",
@@ -1035,4 +1034,4 @@ setupDraggable(ToggleButton, ToggleButton)
 -- Set Initial Page (Updates)
 showPage("Updates")
 
-print("[SPT Hub] ⚡ SPT HUB // ETERNAL COSMIC EDITION V2.1 Initialized.")
+print("⚡ ETERNAL SPT HUB // Initialized.")
