@@ -1,10 +1,9 @@
 -- ============================================================================
--- CIPHER // TARGET AURA V6.0 (MODERN RESCRIPT)
--- Selective Player Aura with Recycled Roster UI & Optimized Combat Dispatch
+-- CIPHER // TARGET AURA V6.1 (MODERN RESCRIPT)
+-- Selective Target Redirector Triggered on Attack/Swing (Zero-Ping Overhead)
 -- ============================================================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
@@ -33,9 +32,6 @@ local THEME = {
 
 local TOGGLE_KEY = Enum.KeyCode.T
 local TOUCH_BURST = 3
-local REMOTE_BURST = 2
-local TICK_INTERVAL = 1 / 30
-
 local TargetList: { [Player]: boolean } = {}
 local Active: boolean = true
 
@@ -248,7 +244,7 @@ end
 local function updateUI()
 	if Active then
 		ToggleButton.TextColor3 = THEME.ActiveGreen
-		ToggleButton.Text = "⚡ TARGET AURA: ON"
+		ToggleButton.Text = "⚡ TARGET AURA: ARMED"
 		MainStroke.Color = THEME.Border
 	else
 		ToggleButton.TextColor3 = THEME.TextMuted
@@ -342,7 +338,7 @@ end)
 updatePlayerList()
 
 -- ============================================================================
--- TOOL CACHING & COMBAT DISPATCH
+-- TOOL CACHING & SWING REDIRECTION (ZERO AUTO-ATTACK PING IMPACT)
 -- ============================================================================
 type CachedTool = {
 	Tool: Tool,
@@ -351,6 +347,7 @@ type CachedTool = {
 }
 
 local cachedTools: { CachedTool } = {}
+local toolConnections: { [Tool]: RBXScriptConnection } = {}
 
 local function findFightRemote(tool: Tool): RemoteEvent?
 	local r = tool:FindFirstChild("FightEvent")
@@ -358,7 +355,12 @@ local function findFightRemote(tool: Tool): RemoteEvent?
 	for _, o in ipairs(tool:GetChildren()) do
 		if o:IsA("RemoteEvent") then
 			local n = string.lower(o.Name)
-			if string.find(n, "fight", 1, true) or string.find(n, "slap", 1, true) or string.find(n, "event", 1, true) then
+			if string.find(n, "fight", 1, true)
+				or string.find(n, "slap", 1, true)
+				or string.find(n, "hit", 1, true)
+				or string.find(n, "attack", 1, true)
+				or string.find(n, "combat", 1, true)
+				or string.find(n, "event", 1, true) then
 				return o
 			end
 		end
@@ -366,49 +368,13 @@ local function findFightRemote(tool: Tool): RemoteEvent?
 	return nil
 end
 
-local function rebuildToolCache()
-	table.clear(cachedTools)
-	local char = LocalPlayer.Character
-	if not char then return end
-
-	for _, tool in ipairs(char:GetChildren()) do
-		if tool:IsA("Tool") then
-			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-			if handle and handle:IsA("BasePart") then
-				handle.CanCollide = false
-				handle.Massless = true
-				handle.CanTouch = true
-			end
-
-			local rem = findFightRemote(tool)
-			table.insert(cachedTools, {
-				Tool = tool,
-				TouchPart = handle,
-				Remote = rem,
-			})
-		end
-	end
-end
-
-local function hookCharacter(char: Model)
-	rebuildToolCache()
-	char.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(rebuildToolCache) end end)
-	char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(rebuildToolCache) end end)
-end
-
-if LocalPlayer.Character then
-	hookCharacter(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(hookCharacter)
-
--- Attack Engine (Single smooth 30 Hz tick)
-local lastAttackTick: number = 0
-
-local function executeTargetAttack()
+-- Strike execution: ONLY called when you attack/swing your tool
+local function executeTargetStrike()
 	if not Active then return end
 	if not next(TargetList) then return end
 	if #cachedTools == 0 then return end
 
+	-- Gather active target characters
 	local targetsToHit: { { Character: Model, Root: BasePart, Parts: { BasePart } } } = {}
 
 	for plr, isTargeted in pairs(TargetList) do
@@ -436,29 +402,22 @@ local function executeTargetAttack()
 
 	for t = 1, #cachedTools do
 		local toolEntry = cachedTools[t]
-		local tool = toolEntry.Tool
 		local touchPart = toolEntry.TouchPart
 		local remote = toolEntry.Remote
 
-		if tool and tool.Parent then
-			pcall(tool.Activate, tool)
+		for _, target in ipairs(targetsToHit) do
+			-- 1. Redirect Remote dispatch to target
+			if remote and remote.Parent and target.Root and target.Root.Parent then
+				pcall(remote.FireServer, remote, target.Root)
+			end
 
-			for _, target in ipairs(targetsToHit) do
-				-- 1. Remote dispatch
-				if remote and remote.Parent and target.Root and target.Root.Parent then
-					for _ = 1, REMOTE_BURST do
-						pcall(remote.FireServer, remote, target.Root)
-					end
-				end
-
-				-- 2. Touch Interest Burst
-				if fireTouch and touchPart and touchPart.Parent then
-					for _, enemyPart in ipairs(target.Parts) do
-						if enemyPart and enemyPart.Parent then
-							for _ = 1, TOUCH_BURST do
-								pcall(fireTouch, touchPart, enemyPart, 0)
-								pcall(fireTouch, touchPart, enemyPart, 1)
-							end
+			-- 2. Force Touch Interests onto target body parts
+			if fireTouch and touchPart and touchPart.Parent then
+				for _, enemyPart in ipairs(target.Parts) do
+					if enemyPart and enemyPart.Parent then
+						for _ = 1, TOUCH_BURST do
+							pcall(fireTouch, touchPart, enemyPart, 0)
+							pcall(fireTouch, touchPart, enemyPart, 1)
 						end
 					end
 				end
@@ -467,13 +426,71 @@ local function executeTargetAttack()
 	end
 end
 
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
-	if now - lastAttackTick < TICK_INTERVAL then return end
-	lastAttackTick = now
+local function hookToolAttack(tool: Tool)
+	if toolConnections[tool] then
+		toolConnections[tool]:Disconnect()
+		toolConnections[tool] = nil
+	end
 
-	executeTargetAttack()
+	-- When you swing or activate your tool, strike the selected target!
+	toolConnections[tool] = tool.Activated:Connect(function()
+		executeTargetStrike()
+	end)
+end
+
+local function rebuildToolCache()
+	table.clear(cachedTools)
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	for _, tool in ipairs(char:GetChildren()) do
+		if tool:IsA("Tool") then
+			hookToolAttack(tool)
+
+			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+			if handle and handle:IsA("BasePart") then
+				handle.CanCollide = false
+				handle.Massless = true
+				handle.CanTouch = true
+			end
+
+			local rem = findFightRemote(tool)
+			table.insert(cachedTools, {
+				Tool = tool,
+				TouchPart = handle,
+				Remote = rem,
+			})
+		end
+	end
+end
+
+-- Fallback attack trigger on click with tool equipped
+UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+	if gpe then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+		or input.KeyCode == Enum.KeyCode.ButtonR2 then
+		if #cachedTools > 0 and Active then
+			executeTargetStrike()
+		end
+	end
 end)
 
+local function hookCharacter(char: Model)
+	for _, conn in pairs(toolConnections) do
+		conn:Disconnect()
+	end
+	table.clear(toolConnections)
+
+	rebuildToolCache()
+	char.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(rebuildToolCache) end end)
+	char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(rebuildToolCache) end end)
+end
+
+if LocalPlayer.Character then
+	hookCharacter(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(hookCharacter)
+
 updateUI()
-print("[Target Aura] CIPHER // TARGET AURA V6.0 Loaded.")
+print("[Target Aura] CIPHER // TARGET AURA V6.1 Loaded (On-Attack Edition).")
