@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // TYCOON TOOL GRABBER V6.1 (MODERN RESCRIPT)
 -- Strict Filtering: GearGiver1 ONLY from Robotic, Stone, Storm, and Magic
