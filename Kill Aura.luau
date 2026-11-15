@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // KILL AURA V6.0 (MODERN RESCRIPT)
 -- High-Speed Multi-Target 360° Combat Aura with Zero-Lag Throttling & Modern UI
