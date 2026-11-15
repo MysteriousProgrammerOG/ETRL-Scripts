@@ -1,6 +1,7 @@
+--!strict
 -- ============================================================================
--- CIPHER // TYCOON TOOL GRABBER V6.0 (MODERN RESCRIPT)
--- High-Speed Tycoon Gear Claimer with Smart Debounce & Lightweight UI
+-- CIPHER // TYCOON TOOL GRABBER V6.1 (MODERN RESCRIPT)
+-- Strict Filtering: GearGiver1 ONLY from Robotic, Stone, Storm, and Magic
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -33,28 +34,30 @@ local THEME = {
 }
 
 local AutoGrab: boolean = true
-local SWEEP_INTERVAL: number = 0.5 -- 2 Hz sweep is more than enough to maintain full gear without network lag
+local SWEEP_INTERVAL: number = 0.5 -- 2 Hz sweep to claim gear without network lag
 
--- Filter Sets
-local EXCLUDED_BASES: { [string]: boolean } = {
-	["Insanity"] = true,
-	["Giant"]    = true,
-	["Dark"]     = true,
-	["Spike"]    = true,
-	["Web"]      = true,
-	["Strong"]   = true,
+-- STRICT FILTER SETS: ONLY these 4 bases are allowed to give tools
+local ALLOWED_BASES: { [string]: boolean } = {
+	["Robotic"] = true,
+	["Stone"]   = true,
+	["Storm"]   = true,
+	["Magic"]   = true,
 }
 
-local ALLOWED_BASES: { [string]: boolean } = {
-	["Stone"]   = true,
-	["Magic"]   = true,
-	["Storm"]   = true,
-	["Robotic"] = true,
+-- EXCLUDED BASES: These bases are strictly blocked
+local EXCLUDED_BASES: { [string]: boolean } = {
+	["Web"]      = true,
+	["Strong"]   = true,
+	["Dark"]     = true,
+	["Spike"]    = true,
+	["Insanity"] = true,
+	["Giant"]    = true,
 }
 
 -- Workspace Targets & Cache
 local tycoons: Instance = Workspace:FindFirstChild("Tycoons") or Workspace
 local touchableParts: { BasePart } = {}
+local partOrigins: { [BasePart]: string } = {}
 local currentRoot: BasePart? = nil
 local lastSweepTime: number = 0
 
@@ -95,7 +98,7 @@ ScreenGui.Parent = guiContainer
 
 local MainCard = Instance.new("Frame")
 MainCard.Name = "MainCard"
-MainCard.Size = UDim2.fromOffset(230, 68)
+MainCard.Size = UDim2.fromOffset(240, 78)
 MainCard.Position = UDim2.new(0.03, 0, 0.52, 0)
 MainCard.BackgroundColor3 = THEME.BgPrimary
 MainCard.BackgroundTransparency = 0.08
@@ -133,7 +136,7 @@ HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
 HeaderTitle.TextColor3 = THEME.Accent
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Text = "⚡ TYCOON // TOOL GRABBER"
+HeaderTitle.Text = "⚡ GEARGIVER1 // GRABBER"
 HeaderTitle.Parent = Header
 
 local StatusDot = Instance.new("Frame")
@@ -197,16 +200,16 @@ GbStroke.Thickness = 1
 GbStroke.Color = THEME.BorderDim
 GbStroke.Parent = GrabOnceBtn
 
-local PartsCountLabel = Instance.new("TextLabel")
-PartsCountLabel.Size = UDim2.new(1, -14, 0, 14)
-PartsCountLabel.Position = UDim2.new(0, 7, 0, 52)
-PartsCountLabel.BackgroundTransparency = 1
-PartsCountLabel.Font = Enum.Font.Gotham
-PartsCountLabel.TextSize = 9
-PartsCountLabel.TextColor3 = THEME.TextMuted
-PartsCountLabel.TextXAlignment = Enum.TextXAlignment.Left
-PartsCountLabel.Text = "Discovered Givers: 0"
-PartsCountLabel.Parent = MainCard
+local SubtitleLabel = Instance.new("TextLabel")
+SubtitleLabel.Size = UDim2.new(1, -14, 0, 20)
+SubtitleLabel.Position = UDim2.new(0, 7, 0, 54)
+SubtitleLabel.BackgroundTransparency = 1
+SubtitleLabel.Font = Enum.Font.Gotham
+SubtitleLabel.TextSize = 9
+SubtitleLabel.TextColor3 = THEME.TextMuted
+SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubtitleLabel.Text = "Target: GearGiver1 (Robotic, Stone, Storm, Magic)"
+SubtitleLabel.Parent = MainCard
 
 -- Draggable implementation
 local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
@@ -244,43 +247,93 @@ end
 setupDraggable(MainCard, Header)
 
 -- ============================================================================
--- GEAR GIVER DISCOVERY & TOUCH ENGINE
+-- STRICT FILTERING ENGINE
 -- ============================================================================
+local function isValidGearGiver(descendant: Instance): (boolean, string?)
+	-- 1. Must be a TouchTransmitter inside a BasePart
+	if not descendant:IsA("TouchTransmitter") then return false, nil end
+
+	local touchPart = descendant.Parent
+	if not (touchPart and touchPart:IsA("BasePart")) then return false, nil end
+
+	-- 2. Must be directly inside GearGiver1 (strict name match: "geargiver1")
+	local gearGiver = touchPart.Parent
+	if not gearGiver then return false, nil end
+	local giverName = string.lower(gearGiver.Name)
+	if giverName ~= "geargiver1" then return false, nil end
+
+	-- 3. Check ancestry to identify the base
+	local current: Instance? = gearGiver.Parent
+	local matchedBase: string? = nil
+
+	while current and current ~= Workspace and current ~= game do
+		local cName = string.lower(current.Name)
+
+		-- Reject immediately if an excluded base name is found anywhere in ancestry
+		for excluded in pairs(EXCLUDED_BASES) do
+			if string.find(cName, string.lower(excluded), 1, true) then
+				return false, nil
+			end
+		end
+
+		-- Check if an allowed base name appears in ancestry
+		for allowed in pairs(ALLOWED_BASES) do
+			if string.find(cName, string.lower(allowed), 1, true) then
+				matchedBase = allowed
+			end
+		end
+
+		current = current.Parent
+	end
+
+	-- ONLY accept if it belongs to one of the 4 allowed bases
+	if matchedBase and ALLOWED_BASES[matchedBase] then
+		return true, matchedBase
+	end
+
+	return false, nil
+end
+
 local function evaluateAndAdd(descendant: Instance)
-	if not descendant:IsA("TouchTransmitter") then return end
+	local isValid, baseName = isValidGearGiver(descendant)
+	if not isValid or not baseName then return end
 
 	local parent = descendant.Parent
 	if not (parent and parent:IsA("BasePart")) then return end
 
-	local gearGiver = parent.Parent
-	if not (gearGiver and string.find(gearGiver.Name, "GearGiver", 1, true)) then return end
+	if not table.find(touchableParts, parent) then
+		table.insert(touchableParts, parent)
+		partOrigins[parent] = baseName
+		SubtitleLabel.Text = string.format("Givers Active: %d (Robotic, Stone, Storm, Magic)", #touchableParts)
 
-	local baseFolder = gearGiver.Parent
-	local baseName = baseFolder and baseFolder.Name
-
-	if not baseName or (ALLOWED_BASES[baseName] or not EXCLUDED_BASES[baseName]) then
-		if not table.find(touchableParts, parent) then
-			table.insert(touchableParts, parent)
-			PartsCountLabel.Text = string.format("Discovered Givers: %d", #touchableParts)
-
-			parent.AncestryChanged:Connect(function(_, newParent)
-				if not newParent then
-					local idx = table.find(touchableParts, parent)
-					if idx then
-						table.remove(touchableParts, idx)
-						PartsCountLabel.Text = string.format("Discovered Givers: %d", #touchableParts)
-					end
+		parent.AncestryChanged:Connect(function(_, newParent)
+			if not newParent then
+				local idx = table.find(touchableParts, parent)
+				if idx then
+					table.remove(touchableParts, idx)
+					partOrigins[parent] = nil
+					SubtitleLabel.Text = string.format("Givers Active: %d (Robotic, Stone, Storm, Magic)", #touchableParts)
 				end
-			end)
-		end
+			end
+		end)
 	end
 end
 
+-- Scan tycoons
 for _, inst in ipairs(tycoons:GetDescendants()) do
 	evaluateAndAdd(inst)
 end
 
 tycoons.DescendantAdded:Connect(evaluateAndAdd)
+
+-- Fallback workspace scanner if tycoons folder was not top-level
+if tycoons ~= Workspace then
+	Workspace.DescendantAdded:Connect(function(inst)
+		if string.lower(inst.Name) == "geargiver1" or inst:IsA("TouchTransmitter") then
+			evaluateAndAdd(inst)
+		end
+	end)
+end
 
 local function updateCharacterRoot(character: Model)
 	currentRoot = (character:WaitForChild("HumanoidRootPart", 5) 
@@ -348,4 +401,4 @@ GrabOnceBtn.MouseButton1Click:Connect(function()
 end)
 
 updateUI()
-print("[Tool Grabber] CIPHER // TYCOON TOOL GRABBER V6.0 Loaded.")
+print("[Tool Grabber] CIPHER // GEARGIVER1 GRABBER V6.1 Loaded (Robotic, Stone, Storm, Magic ONLY).")
