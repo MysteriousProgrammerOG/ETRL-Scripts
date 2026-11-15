@@ -1,9 +1,10 @@
 -- ============================================================================
--- CIPHER // HITBOX EXPANDER V4.0 (MODERN RESCRIPT)
--- Event-Driven Hitbox Expander with Full Restoration & Lightweight UI
+-- CIPHER // HITBOX EXPANDER V4.1 (MODERN RESCRIPT)
+-- Persistent Hitbox Expander with Guaranteed Respawn & Loopbring Synergy
 -- ============================================================================
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
@@ -32,6 +33,9 @@ local THEME = {
 	TextMain    = Color3.fromRGB(240, 242, 248),
 	TextMuted   = Color3.fromRGB(130, 135, 150),
 }
+
+-- Anti-Jitter Zero-Mass Physical Properties (Eliminates all Loopbring physics conflict)
+local ZERO_PHYSICS = PhysicalProperties.new(0.0001, 0, 0, 0, 0)
 
 -- ============================================================================
 -- SAFE GUI RESOLVER
@@ -188,7 +192,7 @@ SizePlus.TextColor3 = THEME.Accent
 SizePlus.Text = "+"
 SizePlus.Parent = SizeControl
 
--- Subtitle / Status row
+-- Subtitle status row
 local SubLabel = Instance.new("TextLabel")
 SubLabel.Size = UDim2.new(1, -14, 0, 16)
 SubLabel.Position = UDim2.new(0, 7, 0, 56)
@@ -197,10 +201,10 @@ SubLabel.Font = Enum.Font.Gotham
 SubLabel.TextSize = 9
 SubLabel.TextColor3 = THEME.TextMuted
 SubLabel.TextXAlignment = Enum.TextXAlignment.Left
-SubLabel.Text = "Target: HumanoidRootPart // Zero Lag"
+SubLabel.Text = "Persistent Respawn // Loopbring Anti-Fling"
 SubLabel.Parent = MainCard
 
--- Draggable Setup
+-- Draggable implementation
 local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
 	local dragging = false
 	local dragStartPos = Vector2.zero
@@ -236,7 +240,7 @@ end
 setupDraggable(MainCard, Header)
 
 -- ============================================================================
--- HITBOX ENGINE WITH FULL STATE RESTORATION
+-- HIGH-PERFORMANCE HITBOX ENGINE WITH LOOPBRING SYNERGY
 -- ============================================================================
 type OriginalData = {
 	Size: Vector3,
@@ -245,11 +249,13 @@ type OriginalData = {
 	CanCollide: boolean,
 	CanQuery: boolean,
 	CanTouch: boolean,
+	Massless: boolean,
+	CustomPhysicalProperties: PhysicalProperties?,
 }
 
 local originalParts: { [BasePart]: OriginalData } = {}
 local activeVisuals: { [BasePart]: SelectionBox } = {}
-local charConnections: { [Player]: RBXScriptConnection } = {}
+local charConnections: { [Player]: { RBXScriptConnection } } = {}
 
 local function restorePart(hrp: BasePart)
 	local orig = originalParts[hrp]
@@ -260,6 +266,10 @@ local function restorePart(hrp: BasePart)
 		hrp.CanCollide = orig.CanCollide
 		hrp.CanQuery = orig.CanQuery
 		hrp.CanTouch = orig.CanTouch
+		hrp.Massless = orig.Massless
+		if orig.CustomPhysicalProperties then
+			hrp.CustomPhysicalProperties = orig.CustomPhysicalProperties
+		end
 	end
 	originalParts[hrp] = nil
 
@@ -270,15 +280,9 @@ local function restorePart(hrp: BasePart)
 	activeVisuals[hrp] = nil
 end
 
-local function applyHitboxToPlayer(player: Player)
-	if player == LocalPlayer then return end
+local function applyHitboxToHRP(hrp: BasePart)
 	if not _G.Enabled then return end
-
-	local char = player.Character
-	if not char then return end
-
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not (hrp and hrp:IsA("BasePart")) then return end
+	if not hrp or not hrp.Parent then return end
 
 	-- Store original properties once
 	if not originalParts[hrp] then
@@ -289,16 +293,29 @@ local function applyHitboxToPlayer(player: Player)
 			CanCollide = hrp.CanCollide,
 			CanQuery = hrp.CanQuery,
 			CanTouch = hrp.CanTouch,
+			Massless = hrp.Massless,
+			CustomPhysicalProperties = hrp.CustomPhysicalProperties,
 		}
 	end
 
 	local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
-	hrp.Size = targetSize
+
+	-- Apply expanded hitbox
+	if hrp.Size ~= targetSize then
+		hrp.Size = targetSize
+	end
+
 	hrp.Transparency = 0.75
 	hrp.Material = Enum.Material.ForceField
+
+	-- CRITICAL FOR LOOPBRING & DETECTION:
+	-- CanCollide = false prevents collision pushing/flinging when brought next to you
 	hrp.CanCollide = false
-	hrp.CanQuery = true
+	-- CanTouch & CanQuery = true ensures maximum weapon touch and hit registration
 	hrp.CanTouch = true
+	hrp.CanQuery = true
+	hrp.Massless = true
+	hrp.CustomPhysicalProperties = ZERO_PHYSICS
 
 	-- Ensure SelectionBox exists
 	local box = activeVisuals[hrp] or hrp:FindFirstChild("HitboxVisual")
@@ -315,6 +332,19 @@ local function applyHitboxToPlayer(player: Player)
 	end
 end
 
+local function applyHitboxToPlayer(player: Player)
+	if player == LocalPlayer then return end
+	if not _G.Enabled then return end
+
+	local char = player.Character
+	if not char then return end
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		applyHitboxToHRP(hrp)
+	end
+end
+
 local function refreshAllHitboxes()
 	if _G.Enabled then
 		for _, player in ipairs(Players:GetPlayers()) do
@@ -327,22 +357,54 @@ local function refreshAllHitboxes()
 	end
 end
 
+-- ============================================================================
+-- GUARANTEED RESPAWN BINDING
+-- ============================================================================
+local function cleanupPlayerConns(player: Player)
+	if charConnections[player] then
+		for _, c in ipairs(charConnections[player]) do
+			c:Disconnect()
+		end
+		charConnections[player] = nil
+	end
+end
+
 local function bindPlayer(player: Player)
 	if player == LocalPlayer then return end
+	cleanupPlayerConns(player)
 
-	if charConnections[player] then
-		charConnections[player]:Disconnect()
+	local conns: { RBXScriptConnection } = {}
+	charConnections[player] = conns
+
+	local function onCharacter(char: Model)
+		-- 1. Immediate check if HRP already exists
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp and hrp:IsA("BasePart") then
+			applyHitboxToHRP(hrp)
+		end
+
+		-- 2. ChildAdded listener for when HRP streams/spawns in
+		table.insert(conns, char.ChildAdded:Connect(function(child: Instance)
+			if child.Name == "HumanoidRootPart" and child:IsA("BasePart") then
+				task.defer(function()
+					applyHitboxToHRP(child)
+				end)
+			end
+		end))
+
+		-- 3. Non-blocking retry loop to guarantee attachment on slow respawns
+		task.spawn(function()
+			local foundHRP = char:WaitForChild("HumanoidRootPart", 4)
+			if foundHRP and foundHRP:IsA("BasePart") and _G.Enabled then
+				applyHitboxToHRP(foundHRP)
+			end
+		end)
 	end
 
-	charConnections[player] = player.CharacterAdded:Connect(function(char)
-		task.wait(0.1) -- Brief tick for HRP to spawn
-		if _G.Enabled then
-			applyHitboxToPlayer(player)
-		end
-	end)
+	table.insert(conns, player.CharacterAdded:Connect(onCharacter))
 
 	if player.Character then
-		applyHitboxToPlayer(player)
+		onCharacter(player.Character)
 	end
 end
 
@@ -351,11 +413,30 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 
 Players.PlayerAdded:Connect(bindPlayer)
-
 Players.PlayerRemoving:Connect(function(player)
-	if charConnections[player] then
-		charConnections[player]:Disconnect()
-		charConnections[player] = nil
+	cleanupPlayerConns(player)
+end)
+
+-- Gentle low-frequency persistence heartbeat (Every 0.5s)
+-- Ensures hitboxes stay applied even if game scripts or health resets overwrite them
+local lastCheck = 0
+RunService.Heartbeat:Connect(function()
+	if not _G.Enabled then return end
+
+	local now = os.clock()
+	if now - lastCheck < 0.5 then return end
+	lastCheck = now
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+			if hrp and hrp:IsA("BasePart") then
+				local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+				if hrp.Size ~= targetSize or hrp.CanCollide == true then
+					applyHitboxToHRP(hrp)
+				end
+			end
+		end
 	end
 end)
 
@@ -403,4 +484,4 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 end)
 
 updateUI()
-print("⚔️ CIPHER // HITBOX EXPANDER V4.0 Loaded.")
+print("⚔️ CIPHER // HITBOX EXPANDER V4.1 Loaded (Guaranteed Respawn Edition).")
