@@ -274,7 +274,7 @@ CloseButton.BackgroundColor3 = THEME.CardBg
 CloseButton.Font = Enum.Font.GothamBold
 CloseButton.TextSize = 13
 CloseButton.TextColor3 = THEME.TextWhite
-CloseButton.Text = "✕"
+CloseButton.Text = "X"
 CloseButton.AutoButtonColor = false
 CloseButton.ZIndex = 2
 CloseButton.Parent = Header
@@ -387,7 +387,7 @@ local PAGE_NAMES = {
 }
 
 local PAGE_ICONS = {
-	["Updates"]        = "✦",
+	["Updates"]        = "✨",
 	["Welcome"]        = "🌌",
 	["Tool Scripts"]   = "⚔️",
 	["Player Scripts"] = "👤",
