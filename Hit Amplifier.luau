@@ -1,35 +1,38 @@
 -- ============================================================================
--- CIPHER // HIT AMPLIFIER V5.0 (MODERN RESCRIPT)
+-- CIPHER // HIT AMPLIFIER V6.0 (COSMIC ETERNAL RESCRIPT)
 -- High-Performance Combat Multiplier with Remote Caching & Zero-Lag Spatial Sweep
+-- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
 -- ============================================================================
--- THEME & CONFIGURATION
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
 -- ============================================================================
 local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
 }
 
 local RANGE_STUDS: number = 45
 local RANGE_SQ: number    = RANGE_STUDS * RANGE_STUDS
 local BURST_COUNT: number = 4
-local SCAN_INTERVAL: number = 1 / 30 -- 30 Hz check is buttery smooth and eliminates CPU overhead
+local SCAN_INTERVAL: number = 1 / 30
 local TOGGLE_KEY: Enum.KeyCode = Enum.KeyCode.H
 local Active: boolean     = true
 
@@ -60,7 +63,7 @@ if existing then
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT UI
+-- COSMIC LIQUID UI & MOBILE SCALING
 -- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CipherHitAmpUI"
@@ -70,34 +73,64 @@ ScreenGui.Parent = guiContainer
 
 local MainCard = Instance.new("Frame")
 MainCard.Name = "MainCard"
-MainCard.Size = UDim2.fromOffset(230, 62)
+MainCard.Size = UDim2.fromOffset(230, 64)
 MainCard.Position = UDim2.new(0.5, -115, 0.18, 0)
-MainCard.BackgroundColor3 = THEME.BgPrimary
-MainCard.BackgroundTransparency = 0.08
+MainCard.BackgroundColor3 = THEME.PanelBg
+MainCard.BackgroundTransparency = 0.05
 MainCard.BorderSizePixel = 0
 MainCard.Active = true
 MainCard.Parent = ScreenGui
 
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainCard
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
 local CardCorner = Instance.new("UICorner")
-CardCorner.CornerRadius = UDim.new(0, 8)
+CardCorner.CornerRadius = UDim.new(0, 9)
 CardCorner.Parent = MainCard
 
 local CardStroke = Instance.new("UIStroke")
-CardStroke.Thickness = 1
-CardStroke.Color = THEME.Border
+CardStroke.Thickness = 1.5
+CardStroke.Color = THEME.AccentPurple
 CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 CardStroke.Parent = MainCard
 
--- Header / Drag Bar
+-- Cosmic Liquid Border Gradient
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = CardStroke
+
+-- Header
 local Header = Instance.new("Frame")
 Header.Name = "Header"
 Header.Size = UDim2.new(1, 0, 0, 22)
-Header.BackgroundColor3 = THEME.BgCard
+Header.BackgroundColor3 = THEME.CardBg
 Header.BorderSizePixel = 0
 Header.Parent = MainCard
 
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.CornerRadius = UDim.new(0, 9)
 HeaderCorner.Parent = Header
 
 local HeaderTitle = Instance.new("TextLabel")
@@ -106,10 +139,25 @@ HeaderTitle.Position = UDim2.new(0, 8, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
 HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
-HeaderTitle.TextColor3 = THEME.Accent
+HeaderTitle.TextColor3 = THEME.TextWhite
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
 HeaderTitle.Text = "⚔️ HIT AMPLIFIER [H]"
 HeaderTitle.Parent = Header
+
+-- Cosmic Liquid Flow on Text
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.TextWhite),
+	ColorSequenceKeypoint.new(0.35, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.70, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(1.00, THEME.TextWhite),
+})
+TitleGradient.Parent = HeaderTitle
+
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
+	TitleGradient.Rotation = (TitleGradient.Rotation + dt * 35) % 360
+end)
 
 local StatusDot = Instance.new("Frame")
 StatusDot.Size = UDim2.fromOffset(7, 7)
@@ -126,8 +174,8 @@ DotCorner.Parent = StatusDot
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.new(1, -14, 0, 28)
-ToggleButton.Position = UDim2.new(0, 7, 0, 26)
-ToggleButton.BackgroundColor3 = THEME.BgCard
+ToggleButton.Position = UDim2.new(0, 7, 0, 27)
+ToggleButton.BackgroundColor3 = THEME.CardBg
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 11
 ToggleButton.TextColor3 = THEME.ActiveGreen
@@ -141,9 +189,7 @@ BtnCorner.Parent = ToggleButton
 
 local BtnStroke = Instance.new("UIStroke")
 BtnStroke.Thickness = 1
-BtnStroke.Color = THEME.Border
-BtnStroke.Transparency = 0.5
-BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+BtnStroke.Color = THEME.BorderDark
 BtnStroke.Parent = ToggleButton
 
 -- Draggable implementation
@@ -181,12 +227,11 @@ end
 
 setupDraggable(MainCard, Header)
 
--- Hover effect
 ToggleButton.MouseEnter:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.AccentDim}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardHover}):Play()
 end)
 ToggleButton.MouseLeave:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.BgCard}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardBg}):Play()
 end)
 
 local function updateUI()
@@ -194,12 +239,12 @@ local function updateUI()
 		ToggleButton.Text = "AMPLIFIER: ACTIVE // 4x BURST"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
 		StatusDot.BackgroundColor3 = THEME.ActiveGreen
-		CardStroke.Color = THEME.Border
+		BtnStroke.Color = THEME.AccentPurple
 	else
 		ToggleButton.Text = "AMPLIFIER: STANDBY [H]"
 		ToggleButton.TextColor3 = THEME.TextMuted
-		StatusDot.BackgroundColor3 = THEME.BorderDim
-		CardStroke.Color = THEME.BorderDim
+		StatusDot.BackgroundColor3 = THEME.BorderDark
+		BtnStroke.Color = THEME.BorderDark
 	end
 end
 
@@ -244,41 +289,84 @@ local function findFightRemote(tool: Tool): RemoteEvent?
 	return nil
 end
 
-local function rebuildTools()
+local function rebuildToolCache()
 	table.clear(cachedTools)
 	local char = LocalPlayer.Character
 	if not char then return end
 
-	for _, obj in ipairs(char:GetChildren()) do
-		if obj:IsA("Tool") then
-			local h = obj:FindFirstChild("Handle")
-			local handlePart = (h and h:IsA("BasePart")) and h or nil
-			if handlePart then
-				handlePart.CanCollide = false
-				handlePart.Massless = true
-				handlePart.CanTouch = true
-			end
-
-			local rem = findFightRemote(obj)
+	for _, item in ipairs(char:GetChildren()) do
+		if item:IsA("Tool") then
+			local handle = item:FindFirstChild("Handle")
+			local bpHandle = if handle and handle:IsA("BasePart") then handle else nil
+			local rem = findFightRemote(item)
 			table.insert(cachedTools, {
-				Tool = obj,
-				Handle = handlePart,
+				Tool = item,
+				Handle = bpHandle,
 				Remote = rem,
 			})
 		end
 	end
 end
 
+local function fireCombatBurst(targetHRP: BasePart)
+	for i = 1, #cachedTools do
+		local entry = cachedTools[i]
+		local rem = entry.Remote
+		if rem and rem.Parent and targetHRP.Parent then
+			for _ = 1, BURST_COUNT do
+				pcall(rem.FireServer, rem, targetHRP)
+			end
+		end
+	end
+end
+
+local lastScanTime: number = 0
+
+RunService.Heartbeat:Connect(function()
+	if not Active then return end
+
+	local now = os.clock()
+	if now - lastScanTime < SCAN_INTERVAL then return end
+	lastScanTime = now
+
+	if #cachedTools == 0 then return end
+
+	local myChar = LocalPlayer.Character
+	if not myChar then return end
+	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+	if not (myHRP and myHRP:IsA("BasePart")) then return end
+
+	local myPos = myHRP.Position
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local pChar = player.Character
+			if pChar then
+				local pHRP = pChar:FindFirstChild("HumanoidRootPart")
+				local pHum = pChar:FindFirstChildOfClass("Humanoid")
+				if pHRP and pHRP:IsA("BasePart") and pHum and pHum.Health > 0 then
+					local dx = pHRP.Position.X - myPos.X
+					local dy = pHRP.Position.Y - myPos.Y
+					local dz = pHRP.Position.Z - myPos.Z
+					if (dx * dx + dy * dy + dz * dz) <= RANGE_SQ then
+						fireCombatBurst(pHRP)
+					end
+				end
+			end
+		end
+	end
+end)
+
 local function hookCharacter(char: Model)
-	rebuildTools()
+	rebuildToolCache()
 	char.ChildAdded:Connect(function(child: Instance)
 		if child:IsA("Tool") then
-			task.defer(rebuildTools)
+			task.defer(rebuildToolCache)
 		end
 	end)
 	char.ChildRemoved:Connect(function(child: Instance)
 		if child:IsA("Tool") then
-			task.defer(rebuildTools)
+			task.defer(rebuildToolCache)
 		end
 	end)
 end
@@ -288,67 +376,4 @@ if LocalPlayer.Character then
 end
 LocalPlayer.CharacterAdded:Connect(hookCharacter)
 
--- Rapid Burst Pulse
-local function pulseCombat()
-	for i = 1, #cachedTools do
-		local entry = cachedTools[i]
-		local tool = entry.Tool
-		if tool and tool.Parent then
-			for _ = 1, BURST_COUNT do
-				pcall(tool.Activate, tool)
-			end
-			local rem = entry.Remote
-			if rem and rem.Parent then
-				pcall(rem.FireServer, rem)
-			end
-		end
-	end
-end
-
--- ============================================================================
--- ZERO-LAG SPATIAL SWEEP
--- ============================================================================
-local lastScanTime: number = 0
-
-RunService.Heartbeat:Connect(function()
-	if not Active then return end
-	if #cachedTools == 0 then return end
-
-	local now = os.clock()
-	if now - lastScanTime < SCAN_INTERVAL then return end
-	lastScanTime = now
-
-	local char = LocalPlayer.Character
-	if not char then return end
-
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not (hrp and hrp:IsA("BasePart")) then return end
-
-	local myPos = hrp.Position
-	local enemyInRange = false
-
-	-- Fast distance scan against other players
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			local pChar = player.Character
-			if pChar then
-				local hum = pChar:FindFirstChildOfClass("Humanoid")
-				local pRoot = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
-				if hum and hum.Health > 0 and pRoot and pRoot:IsA("BasePart") then
-					local diff = pRoot.Position - myPos
-					if (diff.X * diff.X + diff.Y * diff.Y + diff.Z * diff.Z) <= RANGE_SQ then
-						enemyInRange = true
-						break
-					end
-				end
-			end
-		end
-	end
-
-	if enemyInRange then
-		pulseCombat()
-	end
-end)
-
-updateUI()
-print("[Hit Amplifier] CIPHER // HIT AMPLIFIER V5.0 Loaded successfully.")
+print("⚡ [Hit Amplifier] CIPHER // V6.0 Cosmic Eternal Loaded.")
