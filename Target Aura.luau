@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // TARGET AURA V6.0 (MODERN RESCRIPT)
 -- Selective Player Aura with Recycled Roster UI & Optimized Combat Dispatch
