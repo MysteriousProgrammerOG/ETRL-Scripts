@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // TYCOON TOOL GRABBER V6.0 (MODERN RESCRIPT)
 -- High-Speed Tycoon Gear Claimer with Smart Debounce & Lightweight UI
