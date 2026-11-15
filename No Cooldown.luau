@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // NO COOLDOWN SPEED ENGINE V5.0 (MODERN RESCRIPT)
 -- High-Performance Yield Accelerator & Frame-Paced Execution Engine
