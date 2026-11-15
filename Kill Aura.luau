@@ -1,6 +1,6 @@
 -- ============================================================================
--- CIPHER // KILL AURA V6.0 (MODERN RESCRIPT)
--- High-Speed Multi-Target 360° Combat Aura with Zero-Lag Throttling & Modern UI
+-- CIPHER // KILL AURA V6.1 (MODERN RESCRIPT)
+-- 10-Stud Melee Combat Aura Triggered on Attack/Swing (Zero-Ping Overhead)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -31,21 +31,22 @@ local THEME = {
 	TextMuted   = Color3.fromRGB(130, 135, 150),
 }
 
-local RANGE: number           = 45
-local RANGE_SQ: number        = RANGE * RANGE
-local TOUCH_BURST: number     = 2      -- 2 clean touch pairs per target part is 100% responsive and lag-free
-local TICK_INTERVAL: number   = 1 / 30 -- 30 Hz tick delivers maximum DPS with zero frame drops
+-- Settings (10 Stud Radius, No Auto-Attack, Ping-Safe)
+local RANGE: number            = 10     -- Exactly 10 studs as requested
+local RANGE_SQ: number         = RANGE * RANGE
+local TOUCH_BURST: number      = 3      -- 3 clean touch pairs per swing
 local TOGGLE_KEY: Enum.KeyCode = Enum.KeyCode.X
-local Active: boolean         = true
+local Active: boolean          = true
 
 -- State
 local toolParts: { BasePart } = {}
 local toolRemotes: { RemoteEvent } = {}
 local equippedTools: { Tool } = {}
+local toolConnections: { [Tool]: RBXScriptConnection } = {}
 local inRangeEnemies: { { Character: Model, Parts: { BasePart }, Root: BasePart } } = {}
-local lastAuraTick: number = 0
+local lastScanTime: number = 0
 
--- Priority Parts for reliable hit registration without limb bloat
+-- Priority Parts for reliable hit registration
 local PRIORITY_PARTS = {
 	"HumanoidRootPart",
 	"Head",
@@ -128,7 +129,7 @@ HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
 HeaderTitle.TextColor3 = THEME.Accent
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Text = "⚡ KILL AURA // 360° SSS [X]"
+HeaderTitle.Text = "⚡ KILL AURA // 10 STUD RADIUS [X]"
 HeaderTitle.Parent = Header
 
 local StatusDot = Instance.new("Frame")
@@ -151,7 +152,7 @@ ToggleButton.BackgroundColor3 = THEME.BgCard
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 10
 ToggleButton.TextColor3 = THEME.ActiveGreen
-ToggleButton.Text = "AURA: ACTIVE // ALL TARGETS"
+ToggleButton.Text = "AURA: ARMED // ON ATTACK"
 ToggleButton.AutoButtonColor = false
 ToggleButton.Parent = MainCard
 
@@ -175,7 +176,7 @@ CountLabel.Font = Enum.Font.Gotham
 CountLabel.TextSize = 9
 CountLabel.TextColor3 = THEME.TextMuted
 CountLabel.TextXAlignment = Enum.TextXAlignment.Left
-CountLabel.Text = "Targets in range: 0"
+CountLabel.Text = "In 10 stud range: 0 (No Auto-Spam)"
 CountLabel.Parent = MainCard
 
 -- Draggable implementation
@@ -223,7 +224,7 @@ end)
 
 local function updateUI()
 	if Active then
-		ToggleButton.Text = "AURA: ACTIVE // ALL TARGETS"
+		ToggleButton.Text = "AURA: ARMED // ON ATTACK"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
 		StatusDot.BackgroundColor3 = THEME.ActiveGreen
 		CardStroke.Color = THEME.Border
@@ -232,7 +233,7 @@ local function updateUI()
 		ToggleButton.TextColor3 = THEME.TextMuted
 		StatusDot.BackgroundColor3 = THEME.BorderDim
 		CardStroke.Color = THEME.BorderDim
-		CountLabel.Text = "Targets in range: [Offline]"
+		CountLabel.Text = "In range: [Offline]"
 	end
 end
 
@@ -251,73 +252,7 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 end)
 
 -- ============================================================================
--- TOOL CACHING ENGINE
--- ============================================================================
-local function findFightRemote(tool: Tool): RemoteEvent?
-	local r = tool:FindFirstChild("FightEvent")
-	if r and r:IsA("RemoteEvent") then return r end
-	for _, o in ipairs(tool:GetChildren()) do
-		if o:IsA("RemoteEvent") then
-			local n = string.lower(o.Name)
-			if string.find(n, "fight", 1, true) or string.find(n, "slap", 1, true) or string.find(n, "event", 1, true) then
-				return o
-			end
-		end
-	end
-	return nil
-end
-
-local function rebuildToolParts()
-	table.clear(toolParts)
-	table.clear(toolRemotes)
-	table.clear(equippedTools)
-
-	local char = LocalPlayer.Character
-	if not char then return end
-
-	for _, t in ipairs(char:GetChildren()) do
-		if t:IsA("Tool") then
-			table.insert(equippedTools, t)
-
-			local handle = t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
-			if handle and handle:IsA("BasePart") then
-				handle.CanCollide = false
-				handle.Massless = true
-				handle.CanTouch = true
-				if not table.find(toolParts, handle) then
-					table.insert(toolParts, handle)
-				end
-			end
-
-			local rem = findFightRemote(t)
-			if rem and not table.find(toolRemotes, rem) then
-				table.insert(toolRemotes, rem)
-			end
-		end
-	end
-end
-
-local function hookCharacter(char: Model)
-	rebuildToolParts()
-	char.ChildAdded:Connect(function(child: Instance)
-		if child:IsA("Tool") then
-			task.defer(rebuildToolParts)
-		end
-	end)
-	char.ChildRemoved:Connect(function(child: Instance)
-		if child:IsA("Tool") then
-			task.defer(rebuildToolParts)
-		end
-	end)
-end
-
-if LocalPlayer.Character then
-	hookCharacter(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(hookCharacter)
-
--- ============================================================================
--- ENEMY SWEEP & RELENTLESS DISPATCH
+-- RANGE SCANNER (PASSIVE - ZERO AUTO-ATTACK PING IMPACT)
 -- ============================================================================
 local function updateTargets()
 	table.clear(inRangeEnemies)
@@ -360,26 +295,34 @@ local function updateTargets()
 	end
 
 	if Active then
-		CountLabel.Text = string.format("Targets in range: %d", #inRangeEnemies)
+		CountLabel.Text = string.format("In 10 stud range: %d (Swing to strike)", #inRangeEnemies)
 	end
 end
 
-local function fireAuraBurst()
-	if not Active or #inRangeEnemies == 0 then return end
+-- Passive sweep every 0.1s to keep in-range count updated without attacking
+RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	if now - lastScanTime < 0.1 then return end
+	lastScanTime = now
 
-	-- Activate tools
-	for i = 1, #equippedTools do
-		local t = equippedTools[i]
-		if t and t.Parent then
-			pcall(t.Activate, t)
-		end
+	if Active then
+		updateTargets()
 	end
+end)
 
-	-- Fire remotes
+-- ============================================================================
+-- AURA HIT EXECUTION (CALLED ON ATTACK / SWING ONLY)
+-- ============================================================================
+local function executeAuraStrike()
+	if not Active then return end
+	updateTargets()
+	if #inRangeEnemies == 0 then return end
+
 	for i = 1, #inRangeEnemies do
 		local enemy = inRangeEnemies[i]
 		local root = enemy.Root
 
+		-- 1. Melee Combat Remotes
 		for r = 1, #toolRemotes do
 			local rem = toolRemotes[r]
 			if rem and rem.Parent and root and root.Parent then
@@ -387,7 +330,7 @@ local function fireAuraBurst()
 			end
 		end
 
-		-- Touch bursts
+		-- 2. Melee Touch Interests (Registered on swing)
 		if fireTouch then
 			for p = 1, #enemy.Parts do
 				local enemyPart = enemy.Parts[p]
@@ -407,17 +350,106 @@ local function fireAuraBurst()
 	end
 end
 
--- Single, optimized 30 Hz tick loop on Heartbeat
-RunService.Heartbeat:Connect(function()
-	if not Active then return end
+-- ============================================================================
+-- TOOL CACHING & ATTACK HOOKING (MELEE TOOLS)
+-- ============================================================================
+local function findFightRemote(tool: Tool): RemoteEvent?
+	local r = tool:FindFirstChild("FightEvent")
+	if r and r:IsA("RemoteEvent") then return r end
+	for _, o in ipairs(tool:GetChildren()) do
+		if o:IsA("RemoteEvent") then
+			local n = string.lower(o.Name)
+			if string.find(n, "fight", 1, true)
+				or string.find(n, "slap", 1, true)
+				or string.find(n, "hit", 1, true)
+				or string.find(n, "attack", 1, true)
+				or string.find(n, "combat", 1, true)
+				or string.find(n, "event", 1, true) then
+				return o
+			end
+		end
+	end
+	return nil
+end
 
-	local now = os.clock()
-	if now - lastAuraTick < TICK_INTERVAL then return end
-	lastAuraTick = now
+local function hookToolAttack(tool: Tool)
+	if toolConnections[tool] then
+		toolConnections[tool]:Disconnect()
+		toolConnections[tool] = nil
+	end
 
-	updateTargets()
-	fireAuraBurst()
+	-- Trigger damage when the tool is swung/activated
+	toolConnections[tool] = tool.Activated:Connect(function()
+		executeAuraStrike()
+	end)
+end
+
+local function rebuildToolParts()
+	table.clear(toolParts)
+	table.clear(toolRemotes)
+	table.clear(equippedTools)
+
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	for _, t in ipairs(char:GetChildren()) do
+		if t:IsA("Tool") then
+			table.insert(equippedTools, t)
+			hookToolAttack(t)
+
+			local handle = t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+			if handle and handle:IsA("BasePart") then
+				handle.CanCollide = false
+				handle.Massless = true
+				handle.CanTouch = true
+				if not table.find(toolParts, handle) then
+					table.insert(toolParts, handle)
+				end
+			end
+
+			local rem = findFightRemote(t)
+			if rem and not table.find(toolRemotes, rem) then
+				table.insert(toolRemotes, rem)
+			end
+		end
+	end
+end
+
+-- Fallback attack trigger on mouse click / screen tap when melee tool is equipped
+UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+	if gpe then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+		or input.KeyCode == Enum.KeyCode.ButtonR2 then
+		if #equippedTools > 0 and Active then
+			executeAuraStrike()
+		end
+	end
 end)
 
+local function hookCharacter(char: Model)
+	for _, conn in pairs(toolConnections) do
+		conn:Disconnect()
+	end
+	table.clear(toolConnections)
+
+	rebuildToolParts()
+	char.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			task.defer(rebuildToolParts)
+		end
+	end)
+	char.ChildRemoved:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			task.defer(rebuildToolParts)
+		end
+	end)
+end
+
+if LocalPlayer.Character then
+	hookCharacter(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(hookCharacter)
+
 updateUI()
-print("[Kill Aura] CIPHER // KILL AURA V6.0 Loaded (Ultra-Optimized SSS Edition).")
+print("[Kill Aura] CIPHER // KILL AURA V6.1 Loaded (10-Stud On-Attack Edition).")
