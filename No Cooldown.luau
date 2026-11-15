@@ -1,0 +1,82 @@
+--!strict
+-- ============================================================================
+-- CIPHER // NO COOLDOWN SPEED ENGINE V5.0 (MODERN RESCRIPT)
+-- High-Performance Yield Accelerator & Frame-Paced Execution Engine
+-- ============================================================================
+
+local RunService = game:GetService("RunService")
+local PostSim: RBXScriptSignal = RunService.PostSimulation
+
+-- Global API flag
+_G.SpeedEngineEnabled = true
+if typeof(getgenv) == "function" then
+	pcall(function()
+		getgenv().SpeedEngineEnabled = true
+	end)
+end
+
+-- Resolve executor hook capability safely
+local hookfunction = (hookfunction :: any)
+	or (typeof(hookmetamethod) == "function" and function(f: any, h: any) return hookfunction(f, h) end)
+
+if not hookfunction then
+	-- Graceful standby in standard Studio test games
+	print("[No Cooldown] CIPHER // Speed Engine loaded in standard Studio mode.")
+	return
+end
+
+-- Native frame yield using PostSimulation
+local function fastYield(): number
+	return PostSim:Wait()
+end
+
+-- Immediate thread execution without closure allocation
+local function immediateSpawn(duration: number?, func: (...any) -> (), ...: any): thread?
+	if type(func) == "function" then
+		return task.spawn(func, ...)
+	end
+	return nil
+end
+
+-- ============================================================================
+-- HIGH-SPEED HOOKS
+-- ============================================================================
+pcall(function()
+	hookfunction(task.wait, function(duration: number?): number
+		return fastYield()
+	end)
+end)
+
+pcall(function()
+	hookfunction(task.delay, function(duration: number?, func: (...any) -> (), ...: any): thread?
+		return immediateSpawn(duration, func, ...)
+	end)
+end)
+
+-- Legacy globals if present in the environment
+if typeof(getgenv) == "function" then
+	local genv = getgenv()
+	if genv.wait then
+		pcall(function()
+			hookfunction(genv.wait, function(duration: number?): number
+				return fastYield()
+			end)
+		end)
+	end
+	if genv.delay then
+		pcall(function()
+			hookfunction(genv.delay, function(duration: number?, func: (...any) -> (), ...: any): thread?
+				return immediateSpawn(duration, func, ...)
+			end)
+		end)
+	end
+	if genv.spawn then
+		pcall(function()
+			hookfunction(genv.spawn, function(func: (...any) -> (), ...: any): thread?
+				return immediateSpawn(0, func, ...)
+			end)
+		end)
+	end
+end
+
+print("[No Cooldown] CIPHER // NO COOLDOWN SPEED ENGINE V5.0 Active.")
