@@ -1,6 +1,7 @@
 -- ============================================================================
--- CIPHER // ULTRA ANTI-LAG & FPS BOOSTER V5.0 (MODERN RESCRIPT)
--- High-Performance Client Optimizer with Full State Restoration & Clean UI
+-- CIPHER // ULTRA ANTI-LAG & FPS BOOSTER V6.0 (COSMIC ETERNAL RESCRIPT)
+-- High-Performance Client Optimizer with Full State Restoration & Cosmic UI
+-- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
 -- ============================================================================
 
 local Lighting = game:GetService("Lighting")
@@ -8,31 +9,34 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Terrain = Workspace.Terrain
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
 -- ============================================================================
--- THEME & CONFIGURATION
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
 -- ============================================================================
 local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
+	ActiveButtonBg  = Color3.fromRGB(48, 20, 78),
 }
 
 local TOGGLE_KEY = Enum.KeyCode.P
 local BoostActive = true
 
 -- ============================================================================
--- SAFE GUI RESOLVER (CoreGui or PlayerGui fallback)
+-- SAFE GUI RESOLVER
 -- ============================================================================
 local function getGuiContainer(): Instance
 	local success, core = pcall(function()
@@ -58,7 +62,7 @@ if existing then
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT DRAGGABLE UI
+-- COSMIC LIQUID UI & MOBILE SCALING
 -- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CipherAntiLagUI"
@@ -68,34 +72,64 @@ ScreenGui.Parent = guiContainer
 
 local MainCard = Instance.new("Frame")
 MainCard.Name = "MainCard"
-MainCard.Size = UDim2.fromOffset(230, 62)
+MainCard.Size = UDim2.fromOffset(230, 64)
 MainCard.Position = UDim2.new(0.03, 0, 0.65, 0)
-MainCard.BackgroundColor3 = THEME.BgPrimary
-MainCard.BackgroundTransparency = 0.08
+MainCard.BackgroundColor3 = THEME.PanelBg
+MainCard.BackgroundTransparency = 0.05
 MainCard.BorderSizePixel = 0
 MainCard.Active = true
 MainCard.Parent = ScreenGui
 
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainCard
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
 local CardCorner = Instance.new("UICorner")
-CardCorner.CornerRadius = UDim.new(0, 8)
+CardCorner.CornerRadius = UDim.new(0, 9)
 CardCorner.Parent = MainCard
 
 local CardStroke = Instance.new("UIStroke")
-CardStroke.Thickness = 1
-CardStroke.Color = THEME.Border
+CardStroke.Thickness = 1.5
+CardStroke.Color = THEME.AccentPurple
 CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 CardStroke.Parent = MainCard
 
--- Header / Drag Bar
+-- Cosmic Liquid Animated Gradient for Border
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = CardStroke
+
+-- Header
 local Header = Instance.new("Frame")
 Header.Name = "Header"
 Header.Size = UDim2.new(1, 0, 0, 22)
-Header.BackgroundColor3 = THEME.BgCard
+Header.BackgroundColor3 = THEME.CardBg
 Header.BorderSizePixel = 0
 Header.Parent = MainCard
 
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.CornerRadius = UDim.new(0, 9)
 HeaderCorner.Parent = Header
 
 local HeaderTitle = Instance.new("TextLabel")
@@ -104,10 +138,26 @@ HeaderTitle.Position = UDim2.new(0, 8, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
 HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextSize = 10
-HeaderTitle.TextColor3 = THEME.Accent
+HeaderTitle.TextColor3 = THEME.TextWhite
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
 HeaderTitle.Text = "⚡ ANTI-LAG // FPS BOOSTER [P]"
 HeaderTitle.Parent = Header
+
+-- Cosmic Liquid Flow on Text
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.TextWhite),
+	ColorSequenceKeypoint.new(0.35, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.70, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(1.00, THEME.TextWhite),
+})
+TitleGradient.Parent = HeaderTitle
+
+-- Animated Flow Loop
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
+	TitleGradient.Rotation = (TitleGradient.Rotation + dt * 35) % 360
+end)
 
 local StatusDot = Instance.new("Frame")
 StatusDot.Size = UDim2.fromOffset(7, 7)
@@ -124,8 +174,8 @@ DotCorner.Parent = StatusDot
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.new(1, -14, 0, 28)
-ToggleButton.Position = UDim2.new(0, 7, 0, 26)
-ToggleButton.BackgroundColor3 = THEME.BgCard
+ToggleButton.Position = UDim2.new(0, 7, 0, 27)
+ToggleButton.BackgroundColor3 = THEME.CardBg
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 11
 ToggleButton.TextColor3 = THEME.ActiveGreen
@@ -139,9 +189,7 @@ BtnCorner.Parent = ToggleButton
 
 local BtnStroke = Instance.new("UIStroke")
 BtnStroke.Thickness = 1
-BtnStroke.Color = THEME.Border
-BtnStroke.Transparency = 0.5
-BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+BtnStroke.Color = THEME.BorderDark
 BtnStroke.Parent = ToggleButton
 
 -- Universal Smooth Draggable Function
@@ -181,10 +229,10 @@ setupDraggable(MainCard, Header)
 
 -- Button Hover Animations
 ToggleButton.MouseEnter:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.AccentDim}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardHover}):Play()
 end)
 ToggleButton.MouseLeave:Connect(function()
-	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.BgCard}):Play()
+	TweenService:Create(ToggleButton, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardBg}):Play()
 end)
 
 local function updateUI()
@@ -192,12 +240,12 @@ local function updateUI()
 		ToggleButton.Text = "FPS BOOST: ACTIVE"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
 		StatusDot.BackgroundColor3 = THEME.ActiveGreen
-		CardStroke.Color = THEME.Border
+		BtnStroke.Color = THEME.AccentPurple
 	else
 		ToggleButton.Text = "FPS BOOST: OFF [P]"
 		ToggleButton.TextColor3 = THEME.TextMuted
-		StatusDot.BackgroundColor3 = THEME.BorderDim
-		CardStroke.Color = THEME.BorderDim
+		StatusDot.BackgroundColor3 = THEME.BorderDark
+		BtnStroke.Color = THEME.BorderDark
 	end
 end
 
@@ -293,7 +341,6 @@ end
 local function simplifyObject(obj: Instance)
 	if not BoostActive then return end
 
-	-- Skip player characters to preserve character meshes/animations
 	local char = LocalPlayer.Character
 	if char and obj:IsDescendantOf(char) then return end
 
@@ -354,7 +401,6 @@ local function restoreObjects()
 	table.clear(disabledEffects)
 end
 
--- Efficient chunked workspace scan
 local function runBatchOptimization()
 	optimizeLighting()
 	local descendants = Workspace:GetDescendants()
@@ -363,7 +409,6 @@ local function runBatchOptimization()
 	end
 end
 
--- Dynamic listener for newly spawned map elements
 local descendantConnection: RBXScriptConnection? = nil
 
 local function enableBoost()
@@ -407,7 +452,5 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	end
 end)
 
--- Initial run
 enableBoost()
-
-print("[Anti-Lag] CIPHER // ANTI-LAG & FPS BOOSTER V5.0 initialized.")
+print("⚡ [Anti-Lag] CIPHER // V6.0 Cosmic Eternal Loaded.")
