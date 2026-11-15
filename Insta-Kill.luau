@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // INSTA-KILL BURST ENGINE V5.0 (MODERN RESCRIPT)
 -- High-Performance Proximity Eliminator with Smart Burst & Lightweight UI
