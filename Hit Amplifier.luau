@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // HIT AMPLIFIER V5.0 (MODERN RESCRIPT)
 -- High-Performance Combat Multiplier with Remote Caching & Zero-Lag Spatial Sweep
