@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // ULTRA ANTI-LAG & FPS BOOSTER V5.0 (MODERN RESCRIPT)
 -- High-Performance Client Optimizer with Full State Restoration & Clean UI
