@@ -673,7 +673,7 @@ createScriptCard(
 	"Instantly Respawn with near zero delay.",
 	"👋",
 	4,
-	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Tool%20Grabber.luau"
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Respawn.luau"
 )
 
 -- 3. Tool Scripts Page
