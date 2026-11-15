@@ -25,6 +25,7 @@ local THEME = {
 	TextWhite       = Color3.fromRGB(255, 255, 255),    -- Ultra Visible White
 	TextMuted       = Color3.fromRGB(170, 160, 195),    -- Soft Starlight Gray
 	SuccessGreen    = Color3.fromRGB(52, 211, 153),     -- Active Green
+	ActiveButtonBg  = Color3.fromRGB(48, 20, 78),       -- Active Tab Purple
 }
 
 -- ============================================================================
@@ -860,7 +861,7 @@ local function showPage(name: string)
 		local stroke = btn:FindFirstChildWhichIsA("UIStroke")
 
 		if isCurrent then
-			btn.BackgroundColor3 = THEME.ActiveButtonBg
+			btn.BackgroundColor3 = THEME.ActiveButtonBg or Color3.fromRGB(48, 20, 78)
 			btn.TextColor3 = THEME.AccentLight
 			if stroke then stroke.Color = THEME.AccentPurple end
 		else
