@@ -641,14 +641,6 @@ createInfoBanner(
 	"• Transformed UI with animated purple/black flowing borders & starfield.\n• Reorganized tabs: Updates, Welcome, Tools, Players, Misc, Settings.\n• Lightweight zero-lag rendering pipeline.",
 	1
 )
-createScriptCard(
-	"Updates",
-	"Check For Hub Updates",
-	"Verifies latest repository scripts and loads fresh patches.",
-	"🔄",
-	2,
-	"https://raw.githubusercontent.com/MysteriousProgrammerOG/RobloxScripting/refs/heads/KillstreakSystemScripting/Get%20Tools"
-)
 
 -- 2. Welcome Page
 createInfoBanner(
@@ -657,58 +649,154 @@ createInfoBanner(
 	string.format("Logged in as @%s. Select a category on the left sidebar to execute scripts seamlessly.", LocalPlayer.DisplayName),
 	1
 )
+
 createScriptCard(
 	"Welcome",
-	"Get Discord & Community Links",
-	"Copies the official support invite and script repository links.",
-	"💬",
+	"Get Base",
+	"Scans thorugh bases until it finds an available base and instantly claims it for you.",
 	2,
-	function()
-		pcall(function()
-			setclipboard("https://discord.gg/example")
-		end)
-		print("[SPT Hub] Community link copied to clipboard!")
-	end
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Get%20Base.luau"
+)
+
+createScriptCard(
+	"Welcome",
+	"Get Tools",
+	"Instantly grab melee tools upon respawn.",
+	3,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Tool%20Grabber.luau"
+)
+createScriptCard(
+	"Welcome",
+	"Respawn",
+	"Instantly Respawn with near zero delay.",
+	4,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Tool%20Grabber.luau"
 )
 
 -- 3. Tool Scripts Page
 createScriptCard(
 	"Tool Scripts",
-	"Tool Booster & Reach Extender",
-	"Amplifies tool range, click speed, and touch hitbox detection.",
+	"No Cooldown",
+	"Removes Cooldown for instant tooll reactivation.",
 	"⚔️",
 	1,
-	"https://raw.githubusercontent.com/MysteriousProgrammerOG/RobloxScripting/refs/heads/KillstreakSystemScripting/Reach"
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/No%20Cooldown.luau"
+)
+createScriptCard(
+	"Tool Scripts",
+	"Use Tools",
+	"Spam tools endlessly, customizeable attack speed, with different modes.",
+	"⚔️",
+	2,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Use%20Tools.luau"
+)
+createScriptCard(
+	"Tool Scripts",
+	"Remote-Spam",
+	"Spams the FightEvent remote inside tools to directly deal damage. (Not ideal)",
+	"⚔️",
+	3,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Insta-Kill.luau"
+)
+createScriptCard(
+	"Tool Scripts",
+	"Hit Amplifier",
+	"Helps improve hit detection on your enemies. Do not use if you have Insta-Kill enabled.",
+	"⚔️",
+	4,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Hit%20Amplifier.luau"
+)
+createScriptCard(
+	"Tool Scripts",
+	"Loop Tools",
+	"Attach your tools to the targeted plays torso for betetr hit deteecion. Only select one player at a time to avoid conflicts.",
+	"⚔️",
+	5,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Loop%20Tools.luau"
 )
 
 -- 4. Player Scripts Page
 createScriptCard(
 	"Player Scripts",
-	"Speed & Jump Modifier",
-	"Applies mobility boosts, infinite jump, and anti-ragdoll protection.",
+	"Damage",
+	"Extend the hitboxes of players, helps DRASTICALLY with hit detection. SOMETIMES best when used with kill aura.",
 	"⚡",
 	1,
-	function()
-		local char = LocalPlayer.Character
-		if char then
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			if hum then
-				hum.WalkSpeed = 32
-				hum.JumpPower = 80
-			end
-		end
-		print("[SPT Hub] Applied Speed (32) and JumpPower (80)!")
-	end
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Damage.luau"
+)
+createScriptCard(
+	"Player Scripts",
+	"Loopbring",
+	"Loopbring players to your character for pwn killing.",
+	"⚡",
+	2,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Loopbring.luau"
+)
+createScriptCard(
+	"Player Scripts",
+	"Kill Aura",
+	"Creates an invisible hitbox around your character that allows you to damage any players within its range.",
+	"⚡",
+	3,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Kill%20Aura.luau"
+)
+createScriptCard(
+	"Player Scripts",
+	"Target Aura",
+	"Selecting a Play will create force any activations to land on their character. Allowing you to hit them from anywhere. Good for those who have anti-loopbring.",
+	"⚡",
+	4,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Target%20Aura.luau"
+)
+createScriptCard(
+	"Player Scripts",
+	"Anti-Lag",
+	"Boost FPS to avoid lag.",
+	"⚡",
+	5,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Anti-Lag.luau"
 )
 
 -- 5. Misc Scripts Page
 createScriptCard(
 	"Misc Scripts",
-	"Anti-Lag & FPS Ultra Booster",
-	"Optimizes lighting, clears map particles, and boosts render speed.",
+	"Infinite Yield",
+	"Command Pannel for things like flying, noclip, and so on.",
 	"🛡️",
 	1,
-	"https://raw.githubusercontent.com/iamrobloxstudio/OG1-Hub-Scripts/refs/heads/main/Antti-Lag"
+	"https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"
+)
+createScriptCard(
+	"Misc Scripts",
+	"Axe Smash Spam",
+	"Spam the Axe Smash Ability as you please.",
+	"🛡️",
+	2,
+	"https://pastefy.app/CvywWIZ9/raw"
+)
+createScriptCard(
+	"Misc Scripts",
+	"Emote GUI",
+	"A collective of hundred of emotes on the roblox catalog that you can use for entirely free.",
+	"🛡️",
+	3,
+	"https://pastefy.app/T4YoBRGj/raw"
+)
+createScriptCard(
+	"Misc Scripts",
+	"Reach",
+	"Creates a small box around tools to slightly increase reach, helps surprisingly well with hit detection.",
+	"🛡️",
+	4,
+	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Reach.luau"
+)
+createScriptCard(
+	"Misc Scripts",
+	"Grip",
+	"Modifies how tools are held. Has absolutely no impact on combat. Just for visual look.",
+	"🛡️",
+	5,
+	"https://raw.githubusercontent.com/iamrobloxstudio/OG1-Hub-Scripts/refs/heads/main/Grip.lua"
 )
 
 -- 6. Settings Page
