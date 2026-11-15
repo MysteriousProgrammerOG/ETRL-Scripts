@@ -1,29 +1,33 @@
 -- ============================================================================
--- CIPHER // AGGRESSIVE LOOPBRING V5.0 (MODERN RESCRIPT)
--- High-Performance Target Teleporter with Anti-Rubberband Physics & Sleek UI
+-- CIPHER // AGGRESSIVE LOOPBRING V6.0 (COSMIC ETERNAL RESCRIPT)
+-- High-Performance Target Teleporter with Anti-Rubberband Physics & Cosmic UI
+-- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
 -- ============================================================================
--- THEME & CONFIGURATION
+-- THEME & CONFIGURATION (COSMIC ETERNAL)
 -- ============================================================================
 local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
+	VoidBg          = Color3.fromRGB(10, 8, 16),
+	PanelBg         = Color3.fromRGB(18, 13, 28),
+	CardBg          = Color3.fromRGB(26, 18, 42),
+	CardHover       = Color3.fromRGB(38, 26, 62),
+	AccentPurple    = Color3.fromRGB(168, 85, 247),
+	AccentLight     = Color3.fromRGB(192, 132, 252),
+	AccentDeep      = Color3.fromRGB(88, 28, 135),
+	BorderDark      = Color3.fromRGB(35, 20, 55),
+	TextWhite       = Color3.fromRGB(255, 255, 255),
+	TextMuted       = Color3.fromRGB(170, 160, 195),
+	ActiveGreen     = Color3.fromRGB(52, 211, 153),
+	ActiveButtonBg  = Color3.fromRGB(48, 20, 78),
 }
 
 local TOGGLE_KEY = Enum.KeyCode.B
@@ -59,7 +63,7 @@ if existing then
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT UI
+-- COSMIC LIQUID UI & MOBILE SCALING
 -- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CipherLoopBringGUI"
@@ -71,22 +75,56 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.fromOffset(250, 36)
 MainFrame.Position = UDim2.new(0, 20, 0.22, 0)
-MainFrame.BackgroundColor3 = THEME.BgPrimary
-MainFrame.BackgroundTransparency = 0.08
+MainFrame.BackgroundColor3 = THEME.PanelBg
+MainFrame.BackgroundTransparency = 0.05
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.ClipsDescendants = false
 MainFrame.Parent = ScreenGui
 
+-- Mobile Scaler
+local CardScale = Instance.new("UIScale")
+CardScale.Parent = MainFrame
+
+local function updateMobileScaling()
+	local cam = Workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	if vp.X < 650 or vp.Y < 480 then
+		local s = math.clamp(math.min(vp.X / 580, vp.Y / 420), 0.70, 0.95)
+		CardScale.Scale = s
+	else
+		CardScale.Scale = 1.0
+	end
+end
+updateMobileScaling()
+if Workspace.CurrentCamera then
+	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScaling)
+end
+
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.CornerRadius = UDim.new(0, 9)
 MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Thickness = 1
-MainStroke.Color = THEME.Border
+MainStroke.Thickness = 1.5
+MainStroke.Color = THEME.AccentPurple
 MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 MainStroke.Parent = MainFrame
+
+-- Cosmic Liquid Border Gradient
+local BorderGradient = Instance.new("UIGradient")
+BorderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, THEME.AccentPurple),
+	ColorSequenceKeypoint.new(0.25, THEME.VoidBg),
+	ColorSequenceKeypoint.new(0.50, THEME.AccentLight),
+	ColorSequenceKeypoint.new(0.75, THEME.AccentDeep),
+	ColorSequenceKeypoint.new(1.00, THEME.AccentPurple),
+})
+BorderGradient.Parent = MainStroke
+
+RunService.RenderStepped:Connect(function(dt: number)
+	BorderGradient.Rotation = (BorderGradient.Rotation + dt * 50) % 360
+end)
 
 -- Top Control Bar
 local ControlBar = Instance.new("Frame")
@@ -106,10 +144,10 @@ BarLayout.Parent = ControlBar
 local function createBarButton(text: string, width: number, order: number): TextButton
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(0, width, 0, 26)
-	btn.BackgroundColor3 = THEME.BgCard
+	btn.BackgroundColor3 = THEME.CardBg
 	btn.Font = Enum.Font.GothamBold
 	btn.TextSize = 10
-	btn.TextColor3 = THEME.TextMain
+	btn.TextColor3 = THEME.TextWhite
 	btn.Text = text
 	btn.AutoButtonColor = false
 	btn.LayoutOrder = order
@@ -121,63 +159,65 @@ local function createBarButton(text: string, width: number, order: number): Text
 
 	local s = Instance.new("UIStroke")
 	s.Thickness = 1
-	s.Color = THEME.BorderDim
+	s.Color = THEME.BorderDark
 	s.Parent = btn
 
 	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentDim}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardHover}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.BgCard}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = THEME.CardBg}):Play()
 	end)
 
 	return btn
 end
 
-local ToggleButton = createBarButton("⚡ LOOPBRING [B]", 136, 1)
-local AllButton    = createBarButton("ALL", 48, 2)
-local ClearButton  = createBarButton("CLR", 48, 3)
+local ToggleButton = createBarButton("⚡ BRING: ON", 102, 1)
+ToggleButton.TextColor3 = THEME.ActiveGreen
 
-ToggleButton.TextColor3 = THEME.Accent
+local DropdownToggle = createBarButton("TARGETS ▼", 82, 2)
+local AllButton = createBarButton("ALL", 28, 3)
+local ClearButton = createBarButton("CLR", 28, 4)
 
--- Dropdown Roster Panel
-local DropPanel = Instance.new("Frame")
-DropPanel.Name = "DropPanel"
-DropPanel.Size = UDim2.new(1, 0, 0, 0)
-DropPanel.Position = UDim2.new(0, 0, 0, 42)
-DropPanel.BackgroundColor3 = THEME.BgPrimary
-DropPanel.BackgroundTransparency = 0.05
-DropPanel.BorderSizePixel = 0
-DropPanel.ClipsDescendants = true
-DropPanel.Visible = false
-DropPanel.Parent = MainFrame
+-- Dropdown Roster Frame
+local DropdownList = Instance.new("ScrollingFrame")
+DropdownList.Name = "DropdownList"
+DropdownList.Size = UDim2.fromOffset(250, 160)
+DropdownList.Position = UDim2.new(0, 0, 1, 6)
+DropdownList.BackgroundColor3 = THEME.PanelBg
+DropdownList.BorderSizePixel = 0
+DropdownList.ScrollBarThickness = 3
+DropdownList.ScrollBarImageColor3 = THEME.AccentPurple
+DropdownList.Visible = false
+DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+DropdownList.Parent = MainFrame
 
-local DropCorner = Instance.new("UICorner")
-DropCorner.CornerRadius = UDim.new(0, 8)
-DropCorner.Parent = DropPanel
+local DropdownCorner = Instance.new("UICorner")
+DropdownCorner.CornerRadius = UDim.new(0, 8)
+DropdownCorner.Parent = DropdownList
 
-local DropStroke = Instance.new("UIStroke")
-DropStroke.Thickness = 1
-DropStroke.Color = THEME.Border
-DropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-DropStroke.Parent = DropPanel
+local DropdownStroke = Instance.new("UIStroke")
+DropdownStroke.Thickness = 1
+DropdownStroke.Color = THEME.BorderDark
+DropdownStroke.Parent = DropdownList
 
-local ScrollList = Instance.new("ScrollingFrame")
-ScrollList.Size = UDim2.new(1, -12, 1, -12)
-ScrollList.Position = UDim2.new(0, 6, 0, 6)
-ScrollList.BackgroundTransparency = 1
-ScrollList.ScrollBarThickness = 3
-ScrollList.ScrollBarImageColor3 = THEME.Accent
-ScrollList.CanvasSize = UDim2.new(0, 0, 0, 0)
-ScrollList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-ScrollList.Parent = DropPanel
+local DropdownLayout = Instance.new("UIListLayout")
+DropdownLayout.SortOrder = Enum.SortOrder.Name
+DropdownLayout.Padding = UDim.new(0, 4)
+DropdownLayout.Parent = DropdownList
 
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Padding = UDim.new(0, 4)
-ListLayout.SortOrder = Enum.SortOrder.Name
-ListLayout.Parent = ScrollList
+local DropdownPadding = Instance.new("UIPadding")
+DropdownPadding.PaddingTop = UDim.new(0, 6)
+DropdownPadding.PaddingBottom = UDim.new(0, 6)
+DropdownPadding.PaddingLeft = UDim.new(0, 6)
+DropdownPadding.PaddingRight = UDim.new(0, 6)
+DropdownPadding.Parent = DropdownList
 
--- Draggable implementation
+DropdownLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	DropdownList.CanvasSize = UDim2.new(0, 0, 0, DropdownLayout.AbsoluteContentSize.Y + 12)
+end)
+
+-- Universal Draggable Setup
 local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
 	local dragging = false
 	local dragStartPos = Vector2.zero
@@ -210,36 +250,100 @@ local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
 	end)
 end
 
-setupDraggable(MainFrame, MainFrame)
+setupDraggable(MainFrame, ControlBar)
 
--- Dropdown Toggle Animation
-local isPanelOpen = false
-local function togglePanel()
-	isPanelOpen = not isPanelOpen
-	local targetSize = isPanelOpen and UDim2.new(1, 0, 0, 190) or UDim2.new(1, 0, 0, 0)
-
-	if isPanelOpen then
-		DropPanel.Visible = true
+-- ============================================================================
+-- ROSTER SYNC & UI LOGIC
+-- ============================================================================
+local function updateDropdown()
+	for _, child in ipairs(DropdownList:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
 	end
 
-	local tween = TweenService:Create(DropPanel, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize})
-	tween:Play()
-	tween.Completed:Connect(function()
-		if not isPanelOpen then
-			DropPanel.Visible = false
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local isSelected = LoopBrings[player.UserId] == true
+			local itemBtn = Instance.new("TextButton")
+			itemBtn.Name = player.Name
+			itemBtn.Size = UDim2.new(1, 0, 0, 26)
+			itemBtn.BackgroundColor3 = isSelected and THEME.ActiveButtonBg or THEME.CardBg
+			itemBtn.Font = Enum.Font.GothamBold
+			itemBtn.TextSize = 10
+			itemBtn.TextColor3 = isSelected and THEME.AccentLight or THEME.TextMuted
+			itemBtn.Text = (isSelected and "★ " or "") .. player.DisplayName .. " (@" .. player.Name .. ")"
+			itemBtn.AutoButtonColor = false
+			itemBtn.Parent = DropdownList
+
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 5)
+			c.Parent = itemBtn
+
+			local s = Instance.new("UIStroke")
+			s.Thickness = 1
+			s.Color = isSelected and THEME.AccentPurple or THEME.BorderDark
+			s.Parent = itemBtn
+
+			itemBtn.MouseButton1Click:Connect(function()
+				if LoopBrings[player.UserId] then
+					LoopBrings[player.UserId] = nil
+					-- Restore humanoid state if freed
+					pcall(function()
+						if player.Character then
+							local hum = player.Character:FindFirstChildOfClass("Humanoid")
+							if hum then
+								hum.PlatformStand = false
+							end
+						end
+					end)
+				else
+					LoopBrings[player.UserId] = true
+				end
+				updateDropdown()
+			end)
 		end
-	end)
+	end
 end
+
+DropdownToggle.MouseButton1Click:Connect(function()
+	DropdownList.Visible = not DropdownList.Visible
+	DropdownToggle.Text = DropdownList.Visible and "TARGETS ▲" or "TARGETS ▼"
+	if DropdownList.Visible then
+		updateDropdown()
+	end
+end)
+
+AllButton.MouseButton1Click:Connect(function()
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then
+			LoopBrings[p.UserId] = true
+		end
+	end
+	updateDropdown()
+end)
+
+ClearButton.MouseButton1Click:Connect(function()
+	for id in pairs(LoopBrings) do
+		local p = Players:GetPlayerByUserId(id)
+		if p and p.Character then
+			pcall(function()
+				local hum = p.Character:FindFirstChildOfClass("Humanoid")
+				if hum then hum.PlatformStand = false end
+			end)
+		end
+	end
+	table.clear(LoopBrings)
+	updateDropdown()
+end)
 
 local function updateUI()
 	if Active then
+		ToggleButton.Text = "⚡ BRING: ON"
 		ToggleButton.TextColor3 = THEME.ActiveGreen
-		ToggleButton.Text = "⚡ LOOPBRING: ON"
-		MainStroke.Color = THEME.Border
 	else
+		ToggleButton.Text = "⚡ BRING: OFF [B]"
 		ToggleButton.TextColor3 = THEME.TextMuted
-		ToggleButton.Text = "⚡ LOOPBRING: OFF [B]"
-		MainStroke.Color = THEME.BorderDim
 	end
 end
 
@@ -248,7 +352,7 @@ local function toggleActive()
 	updateUI()
 end
 
-ToggleButton.MouseButton1Click:Connect(togglePanel)
+ToggleButton.MouseButton1Click:Connect(toggleActive)
 
 UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	if gpe then return end
@@ -258,114 +362,12 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 end)
 
 -- ============================================================================
--- ROSTER UPDATE ENGINE
+-- HIGH-PERFORMANCE PRE-SIMULATION TELEPORTATION ENGINE
 -- ============================================================================
-local function updatePlayerList()
-	for _, child in ipairs(ScrollList:GetChildren()) do
-		if child:IsA("TextButton") then
-			child:Destroy()
-		end
-	end
+local zeroVelocity = Vector3.zero
 
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			local isLocked = LoopBrings[player.UserId] == true
-
-			local btn = Instance.new("TextButton")
-			btn.Name = player.Name
-			btn.Size = UDim2.new(1, -4, 0, 24)
-			btn.BackgroundColor3 = isLocked and THEME.AccentDim or THEME.BgCard
-			btn.TextColor3 = isLocked and THEME.Accent or THEME.TextMain
-			btn.Font = Enum.Font.GothamBold
-			btn.TextSize = 10
-			btn.AutoButtonColor = false
-			btn.Text = (isLocked and "★ " or "") .. player.DisplayName .. (isLocked and " [LOCKED]" or "")
-			btn.Parent = ScrollList
-
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0, 5)
-			c.Parent = btn
-
-			local s = Instance.new("UIStroke")
-			s.Thickness = 1
-			s.Color = isLocked and THEME.Border or THEME.BorderDim
-			s.Parent = btn
-
-			btn.MouseButton1Click:Connect(function()
-				if LoopBrings[player.UserId] then
-					LoopBrings[player.UserId] = nil
-					if player.Character then
-						local hum = player.Character:FindFirstChildOfClass("Humanoid")
-						if hum then
-							hum.WalkSpeed = 16
-							hum.JumpPower = 50
-						end
-					end
-				else
-					LoopBrings[player.UserId] = true
-				end
-				updatePlayerList()
-			end)
-		end
-	end
-end
-
-AllButton.MouseButton1Click:Connect(function()
-	local anyUnlocked = false
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer and not LoopBrings[p.UserId] then
-			anyUnlocked = true
-			break
-		end
-	end
-
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer then
-			if anyUnlocked then
-				LoopBrings[p.UserId] = true
-			else
-				LoopBrings[p.UserId] = nil
-				if p.Character then
-					local hum = p.Character:FindFirstChildOfClass("Humanoid")
-					if hum then
-						hum.WalkSpeed = 16
-						hum.JumpPower = 50
-					end
-				end
-			end
-		end
-	end
-	updatePlayerList()
-end)
-
-ClearButton.MouseButton1Click:Connect(function()
-	for userId in pairs(LoopBrings) do
-		local p = Players:GetPlayerByUserId(userId)
-		if p and p.Character then
-			local hum = p.Character:FindFirstChildOfClass("Humanoid")
-			if hum then
-				hum.WalkSpeed = 16
-				hum.JumpPower = 50
-			end
-		end
-	end
-	table.clear(LoopBrings)
-	updatePlayerList()
-end)
-
-Players.PlayerAdded:Connect(updatePlayerList)
-Players.PlayerRemoving:Connect(function(player: Player)
-	LoopBrings[player.UserId] = nil
-	updatePlayerList()
-end)
-
-updatePlayerList()
-
--- ============================================================================
--- HIGH-PERFORMANCE LOOPBRING ENGINE
--- ============================================================================
-local function executeBringCycle()
-	if not Active or not next(LoopBrings) then return end
+RunService.PreSimulation:Connect(function()
+	if not Active then return end
 
 	local myChar = LocalPlayer.Character
 	if not myChar then return end
@@ -373,32 +375,39 @@ local function executeBringCycle()
 	local myHRP = myChar:FindFirstChild("HumanoidRootPart")
 	if not (myHRP and myHRP:IsA("BasePart")) then return end
 
-	local targetCFrame = myHRP.CFrame * CFrame.new(targetOffset, 0, -targetDistance)
+	local bringCFrame = myHRP.CFrame * CFrame.new(targetOffset, 0, -targetDistance)
 
-	for userId, isLocked in pairs(LoopBrings) do
-		if isLocked then
-			local targetPlayer = Players:GetPlayerByUserId(userId)
-			if targetPlayer and targetPlayer.Character then
-				local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-				local targetHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-
-				if targetHRP and targetHRP:IsA("BasePart") then
-					targetHRP.CFrame = targetCFrame
-					targetHRP.AssemblyLinearVelocity = Vector3.zero
-					targetHRP.AssemblyAngularVelocity = Vector3.zero
-
-					if targetHum then
-						targetHum.WalkSpeed = 0
-						targetHum.JumpPower = 0
+	for userId in pairs(LoopBrings) do
+		local player = Players:GetPlayerByUserId(userId)
+		if player and player ~= LocalPlayer then
+			local pChar = player.Character
+			if pChar then
+				local pHRP = pChar:FindFirstChild("HumanoidRootPart")
+				local pHum = pChar:FindFirstChildOfClass("Humanoid")
+				if pHRP and pHRP:IsA("BasePart") and pHum and pHum.Health > 0 then
+					pHRP.CFrame = bringCFrame
+					pHRP.AssemblyLinearVelocity = zeroVelocity
+					pHRP.AssemblyAngularVelocity = zeroVelocity
+					if not pHum.PlatformStand then
+						pHum.PlatformStand = true
 					end
 				end
 			end
 		end
 	end
-end
+end)
 
--- Run on PreSimulation (replaces the triple Stepped+PreRender+Heartbeat spam with a clean single physics step)
-RunService.PreSimulation:Connect(executeBringCycle)
+Players.PlayerRemoving:Connect(function(player)
+	LoopBrings[player.UserId] = nil
+	if DropdownList.Visible then
+		updateDropdown()
+	end
+end)
 
-updateUI()
-print("[Loopbring] CIPHER // AGGRESSIVE LOOPBRING V5.0 Loaded.")
+Players.PlayerAdded:Connect(function()
+	if DropdownList.Visible then
+		updateDropdown()
+	end
+end)
+
+print("⚡ [Loopbring] CIPHER // V6.0 Cosmic Eternal Loaded.")
