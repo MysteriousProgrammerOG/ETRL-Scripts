@@ -1,4 +1,3 @@
---!strict
 -- ============================================================================
 -- CIPHER // LOOP TOOLS V5.0 (MODERN RESCRIPT)
 -- High-Speed Tool Attachment & Target Follower with Clean Dropdown UI
