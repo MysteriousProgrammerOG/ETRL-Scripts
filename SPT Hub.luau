@@ -654,6 +654,7 @@ createScriptCard(
 	"Welcome",
 	"Get Base",
 	"Scans thorugh bases until it finds an available base and instantly claims it for you.",
+	"👋",
 	2,
 	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Get%20Base.luau"
 )
@@ -662,6 +663,7 @@ createScriptCard(
 	"Welcome",
 	"Get Tools",
 	"Instantly grab melee tools upon respawn.",
+	"👋",
 	3,
 	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Tool%20Grabber.luau"
 )
@@ -669,6 +671,7 @@ createScriptCard(
 	"Welcome",
 	"Respawn",
 	"Instantly Respawn with near zero delay.",
+	"👋",
 	4,
 	"https://raw.githubusercontent.com/MysteriousProgrammerOG/ETRL-Scripts/refs/heads/main/Tool%20Grabber.luau"
 )
