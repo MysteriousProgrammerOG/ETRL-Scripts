@@ -512,14 +512,24 @@ local function pulseCombat()
 			end
 		end
 
-		-- 3. Touch Assist (Precision touch interest)
+		-- 3. Touch Assist (Precision body-part touch interest: Torso, Head, and Root)
 		if fireTouch and entry.Handle and #cachedNearbyEnemies > 0 then
 			local h = entry.Handle
-			for e = 1, math.min(#cachedNearbyEnemies, 2) do
-				local enemyRoot = cachedNearbyEnemies[e].Root
-				if enemyRoot and enemyRoot.Parent then
-					pcall(fireTouch, h, enemyRoot, 0)
-					pcall(fireTouch, h, enemyRoot, 1)
+			for e = 1, math.min(#cachedNearbyEnemies, 3) do
+				local targetChar = cachedNearbyEnemies[e].Character
+				if targetChar and targetChar.Parent then
+					local hitParts = {
+						targetChar:FindFirstChild("Torso") or targetChar:FindFirstChild("UpperTorso"),
+						targetChar:FindFirstChild("Head"),
+						cachedNearbyEnemies[e].Root,
+					}
+					for p = 1, #hitParts do
+						local part = hitParts[p]
+						if part and part:IsA("BasePart") and part.Parent then
+							pcall(fireTouch, h, part, 0)
+							pcall(fireTouch, h, part, 1)
+						end
+					end
 				end
 			end
 		end
