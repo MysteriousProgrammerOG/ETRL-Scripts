@@ -1,7 +1,7 @@
 -- ============================================================================
--- CIPHER // TARGET AURA V7.0 (COSMIC ETERNAL RESCRIPT)
--- Selective Target Redirector Triggered on Attack/Swing (Zero-Ping Overhead)
--- Mobile Scaled // Cosmic Liquid Border Flow // Black & Purple Theme
+-- CIPHER // TARGET AURA V8.0 (FOCUSED PRECISION TOUCH ENGINE)
+-- Dedicated 1v1 Target Helper: Head, Torso, & Root Focused Touch Replication
+-- Mobile Scaled // Cosmic Liquid Border Flow // Precision Single-Target Strike
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -40,11 +40,13 @@ local TOUCH_BURST = 3
 local TargetList: { [Player]: boolean } = {}
 local Active: boolean = true
 
-local PRIORITY_PARTS = {
-	"HumanoidRootPart",
-	"Head",
-	"UpperTorso",
+-- Vital target parts (Torso, Head, and Root)
+local VITAL_PART_NAMES = {
 	"Torso",
+	"UpperTorso",
+	"LowerTorso",
+	"Head",
+	"HumanoidRootPart",
 }
 
 -- Caches
@@ -361,19 +363,52 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 end)
 
 -- ============================================================================
--- TARGET ATTACK DISPATCHER (ON SWING / ATTACK ONLY)
+-- PRECISION TARGET ATTACK DISPATCHER (HEAD, TORSO, & ROOT ONLY)
 -- ============================================================================
 local function executeTargetStrike()
 	if not Active then return end
 
-	for targetPlayer in pairs(TargetList) do
+	local targetsToStrike: { Player } = {}
+	for p in pairs(TargetList) do
+		if p and p.Parent then
+			table.insert(targetsToStrike, p)
+		end
+	end
+
+	-- Auto-Target Nearest Fallback if no target was manually clicked
+	if #targetsToStrike == 0 then
+		local char = LocalPlayer.Character
+		local myRoot = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+		if myRoot and myRoot:IsA("BasePart") then
+			local closestDistSq = 70 * 70
+			local closestP: Player? = nil
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p ~= LocalPlayer and p.Character then
+					local hum = p.Character:FindFirstChildOfClass("Humanoid")
+					local r = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso")
+					if hum and r and r:IsA("BasePart") and hum.Health > 0 then
+						local distSq = (r.Position - myRoot.Position).Magnitude ^ 2
+						if distSq < closestDistSq then
+							closestDistSq = distSq
+							closestP = p
+						end
+					end
+				end
+			end
+			if closestP then
+				table.insert(targetsToStrike, closestP)
+			end
+		end
+	end
+
+	for _, targetPlayer in ipairs(targetsToStrike) do
 		if targetPlayer and targetPlayer.Parent and targetPlayer ~= LocalPlayer then
 			local pChar = targetPlayer.Character
 			if pChar then
 				local enemyRoot = pChar:FindFirstChild("HumanoidRootPart") or pChar:FindFirstChild("Torso")
 				local hum = pChar:FindFirstChildOfClass("Humanoid")
 				if enemyRoot and enemyRoot:IsA("BasePart") and hum and hum.Health > 0 then
-					-- 1. Melee Combat Remotes
+					-- 1. Melee Combat Remotes (FightEvent)
 					for r = 1, #toolRemotes do
 						local rem = toolRemotes[r]
 						if rem and rem.Parent and enemyRoot.Parent then
@@ -381,9 +416,9 @@ local function executeTargetStrike()
 						end
 					end
 
-					-- 2. Melee Touch Interests
+					-- 2. Precision Touch Interests strictly to Torso, Head, and Root
 					if fireTouch then
-						for _, partName in ipairs(PRIORITY_PARTS) do
+						for _, partName in ipairs(VITAL_PART_NAMES) do
 							local enemyPart = pChar:FindFirstChild(partName)
 							if enemyPart and enemyPart:IsA("BasePart") and enemyPart.Parent then
 								for t = 1, #toolParts do
@@ -403,6 +438,19 @@ local function executeTargetStrike()
 		end
 	end
 end
+
+-- Continuous Proximity Watchdog (15 Hz)
+local lastAutoStrike = 0
+RunService.Heartbeat:Connect(function()
+	if not Active then return end
+	local now = os.clock()
+	if now - lastAutoStrike < 0.065 then return end
+	lastAutoStrike = now
+
+	if #toolParts > 0 or #toolRemotes > 0 then
+		executeTargetStrike()
+	end
+end)
 
 -- ============================================================================
 -- TOOL CACHING & HOOKING
@@ -526,4 +574,4 @@ Players.PlayerAdded:Connect(function()
 	end
 end)
 
-print("⚡ [Target Aura] CIPHER // V7.0 Cosmic Eternal Loaded.")
+print("⚡ [Target Aura] CIPHER // V8.0 Precision Touch Loaded (Vital Parts Focused).")
