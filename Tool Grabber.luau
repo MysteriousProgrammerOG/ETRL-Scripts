@@ -1,13 +1,11 @@
 -- ============================================================================
--- CIPHER // TYCOON TOOL GRABBER V6.1 (MODERN RESCRIPT)
--- Strict Filtering: GearGiver1 ONLY from Robotic, Stone, Storm, and Magic
+-- CIPHER // TYCOON TOOL GRABBER V8.0 (SMART INVENTORY HEADLESS SERVICE)
+-- Dynamic Pad Detection & Instant Gear Acquisition Engine
+-- Auto-Stops when (Energy Sword, Fists, Staff, Axe) are in Inventory
 -- ============================================================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
@@ -16,26 +14,21 @@ local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: a
 	or (getgenv and (getgenv().firetouchinterest or getgenv().fire_touch_interest))
 	or (syn and syn.firetouchinterest)
 
--- ============================================================================
--- THEME & CONFIGURATION
--- ============================================================================
-local THEME = {
-	BgPrimary   = Color3.fromRGB(13, 14, 18),
-	BgCard      = Color3.fromRGB(20, 22, 28),
-	Accent      = Color3.fromRGB(255, 45, 70),
-	AccentHover = Color3.fromRGB(255, 75, 98),
-	AccentDim   = Color3.fromRGB(70, 18, 26),
-	ActiveGreen = Color3.fromRGB(46, 213, 115),
-	Border      = Color3.fromRGB(255, 45, 70),
-	BorderDim   = Color3.fromRGB(45, 48, 58),
-	TextMain    = Color3.fromRGB(240, 242, 248),
-	TextMuted   = Color3.fromRGB(130, 135, 150),
-}
+-- Destroy any previous UI if left over
+pcall(function()
+	local core = game:GetService("CoreGui"):FindFirstChild("CipherToolGrabberUI")
+	if core then core:Destroy() end
+	local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if pgui then
+		local u = pgui:FindFirstChild("CipherToolGrabberUI")
+		if u then u:Destroy() end
+	end
+end)
 
-local AutoGrab: boolean = true
-local SWEEP_INTERVAL: number = 0.5 -- 2 Hz sweep to claim gear without network lag
-
--- STRICT FILTER SETS: ONLY these 4 bases are allowed to give tools
+-- ============================================================================
+-- CONFIGURATION & FILTER SETS
+-- ============================================================================
+-- ONLY these 4 bases are allowed to give tools
 local ALLOWED_BASES: { [string]: boolean } = {
 	["Robotic"] = true,
 	["Stone"]   = true,
@@ -43,7 +36,6 @@ local ALLOWED_BASES: { [string]: boolean } = {
 	["Magic"]   = true,
 }
 
--- EXCLUDED BASES: These bases are strictly blocked
 local EXCLUDED_BASES: { [string]: boolean } = {
 	["Web"]      = true,
 	["Strong"]   = true,
@@ -53,229 +45,69 @@ local EXCLUDED_BASES: { [string]: boolean } = {
 	["Giant"]    = true,
 }
 
--- Workspace Targets & Cache
-local tycoons: Instance = Workspace:FindFirstChild("Tycoons") or Workspace
-local touchableParts: { BasePart } = {}
-local partOrigins: { [BasePart]: string } = {}
+-- 4 Required Core Weapons
+local REQUIRED_KEYWORDS = { "sword", "fist", "staff", "axe" }
+
+-- Active Giver Pads (Only pads that currently exist in the map)
+local activeGiverParts: { BasePart } = {}
 local currentRoot: BasePart? = nil
-local lastSweepTime: number = 0
+local isClaiming: boolean = false
 
 -- ============================================================================
--- SAFE GUI RESOLVER
+-- INVENTORY AUDITOR (CHECKS IF WE ALREADY HAVE ALL 4 TOOLS)
 -- ============================================================================
-local function getGuiContainer(): Instance
-	local success, core = pcall(function()
-		return game:GetService("CoreGui")
-	end)
-	if success and core then
-		local canWrite = pcall(function()
-			local test = Instance.new("Folder")
-			test.Parent = core
-			test:Destroy()
-		end)
-		if canWrite then
-			return core
+local function hasAllRequiredTools(): boolean
+	local foundCount = 0
+	local matchedKeywords: { [string]: boolean } = {}
+
+	local containers = { LocalPlayer:FindFirstChildOfClass("Backpack"), LocalPlayer.Character }
+	for _, container in ipairs(containers) do
+		if container then
+			for _, item in ipairs(container:GetChildren()) do
+				if item:IsA("Tool") then
+					local lowerName = string.lower(item.Name)
+					for _, kw in ipairs(REQUIRED_KEYWORDS) do
+						if not matchedKeywords[kw] and string.find(lowerName, kw, 1, true) then
+							matchedKeywords[kw] = true
+							foundCount += 1
+						end
+					end
+				end
+			end
 		end
 	end
-	return LocalPlayer:WaitForChild("PlayerGui")
-end
 
-local guiContainer = getGuiContainer()
-local existing = guiContainer:FindFirstChild("CipherToolGrabberUI")
-if existing then
-	existing:Destroy()
+	return foundCount >= #REQUIRED_KEYWORDS
 end
 
 -- ============================================================================
--- MODERN LIGHTWEIGHT UI
--- ============================================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CipherToolGrabberUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = guiContainer
-
-local MainCard = Instance.new("Frame")
-MainCard.Name = "MainCard"
-MainCard.Size = UDim2.fromOffset(240, 78)
-MainCard.Position = UDim2.new(0.03, 0, 0.52, 0)
-MainCard.BackgroundColor3 = THEME.BgPrimary
-MainCard.BackgroundTransparency = 0.08
-MainCard.BorderSizePixel = 0
-MainCard.Active = true
-MainCard.Parent = ScreenGui
-
-local CardCorner = Instance.new("UICorner")
-CardCorner.CornerRadius = UDim.new(0, 8)
-CardCorner.Parent = MainCard
-
-local CardStroke = Instance.new("UIStroke")
-CardStroke.Thickness = 1
-CardStroke.Color = THEME.Border
-CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-CardStroke.Parent = MainCard
-
--- Header / Drag Bar
-local Header = Instance.new("Frame")
-Header.Name = "Header"
-Header.Size = UDim2.new(1, 0, 0, 22)
-Header.BackgroundColor3 = THEME.BgCard
-Header.BorderSizePixel = 0
-Header.Parent = MainCard
-
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 8)
-HeaderCorner.Parent = Header
-
-local HeaderTitle = Instance.new("TextLabel")
-HeaderTitle.Size = UDim2.new(1, -24, 1, 0)
-HeaderTitle.Position = UDim2.new(0, 8, 0, 0)
-HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Font = Enum.Font.GothamBold
-HeaderTitle.TextSize = 10
-HeaderTitle.TextColor3 = THEME.Accent
-HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Text = "⚡ GEARGIVER1 // GRABBER"
-HeaderTitle.Parent = Header
-
-local StatusDot = Instance.new("Frame")
-StatusDot.Size = UDim2.fromOffset(7, 7)
-StatusDot.Position = UDim2.new(1, -14, 0.5, -3)
-StatusDot.BackgroundColor3 = THEME.ActiveGreen
-StatusDot.BorderSizePixel = 0
-StatusDot.Parent = Header
-
-local DotCorner = Instance.new("UICorner")
-DotCorner.CornerRadius = UDim.new(1, 0)
-DotCorner.Parent = StatusDot
-
--- Action Row (Auto Toggle + Grab Once)
-local ActionRow = Instance.new("Frame")
-ActionRow.Size = UDim2.new(1, -14, 0, 26)
-ActionRow.Position = UDim2.new(0, 7, 0, 26)
-ActionRow.BackgroundTransparency = 1
-ActionRow.Parent = MainCard
-
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "ToggleBtn"
-ToggleBtn.Size = UDim2.new(0.68, -4, 1, 0)
-ToggleBtn.Position = UDim2.new(0, 0, 0, 0)
-ToggleBtn.BackgroundColor3 = THEME.BgCard
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.TextSize = 10
-ToggleBtn.TextColor3 = THEME.ActiveGreen
-ToggleBtn.Text = "AUTO-GRAB: ON"
-ToggleBtn.AutoButtonColor = false
-ToggleBtn.Parent = ActionRow
-
-local TbCorner = Instance.new("UICorner")
-TbCorner.CornerRadius = UDim.new(0, 6)
-TbCorner.Parent = ToggleBtn
-
-local TbStroke = Instance.new("UIStroke")
-TbStroke.Thickness = 1
-TbStroke.Color = THEME.Border
-TbStroke.Transparency = 0.5
-TbStroke.Parent = ToggleBtn
-
-local GrabOnceBtn = Instance.new("TextButton")
-GrabOnceBtn.Name = "GrabOnceBtn"
-GrabOnceBtn.Size = UDim2.new(0.32, 0, 1, 0)
-GrabOnceBtn.Position = UDim2.new(0.68, 0, 0, 0)
-GrabOnceBtn.BackgroundColor3 = THEME.BgCard
-GrabOnceBtn.Font = Enum.Font.GothamBold
-GrabOnceBtn.TextSize = 10
-GrabOnceBtn.TextColor3 = THEME.TextMain
-GrabOnceBtn.Text = "PULSE"
-GrabOnceBtn.AutoButtonColor = false
-GrabOnceBtn.Parent = ActionRow
-
-local GbCorner = Instance.new("UICorner")
-GbCorner.CornerRadius = UDim.new(0, 6)
-GbCorner.Parent = GrabOnceBtn
-
-local GbStroke = Instance.new("UIStroke")
-GbStroke.Thickness = 1
-GbStroke.Color = THEME.BorderDim
-GbStroke.Parent = GrabOnceBtn
-
-local SubtitleLabel = Instance.new("TextLabel")
-SubtitleLabel.Size = UDim2.new(1, -14, 0, 20)
-SubtitleLabel.Position = UDim2.new(0, 7, 0, 54)
-SubtitleLabel.BackgroundTransparency = 1
-SubtitleLabel.Font = Enum.Font.Gotham
-SubtitleLabel.TextSize = 9
-SubtitleLabel.TextColor3 = THEME.TextMuted
-SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-SubtitleLabel.Text = "Target: GearGiver1 (Robotic, Stone, Storm, Magic)"
-SubtitleLabel.Parent = MainCard
-
--- Draggable implementation
-local function setupDraggable(targetFrame: Frame, dragAnchor: Frame)
-	local dragging = false
-	local dragStartPos = Vector2.zero
-	local frameStartPos = UDim2.new()
-
-	dragAnchor.InputBegan:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
-			frameStartPos = targetFrame.Position
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input: InputObject)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
-			targetFrame.Position = UDim2.new(
-				frameStartPos.X.Scale,
-				frameStartPos.X.Offset + delta.X,
-				frameStartPos.Y.Scale,
-				frameStartPos.Y.Offset + delta.Y
-			)
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
-		end
-	end)
-end
-
-setupDraggable(MainCard, Header)
-
--- ============================================================================
--- STRICT FILTERING ENGINE
+-- STRICT FILTERING ENGINE (VALIDATES GEARGIVER1 IN ALLOWED BASES)
 -- ============================================================================
 local function isValidGearGiver(descendant: Instance): (boolean, string?)
-	-- 1. Must be a TouchTransmitter inside a BasePart
 	if not descendant:IsA("TouchTransmitter") then return false, nil end
 
 	local touchPart = descendant.Parent
 	if not (touchPart and touchPart:IsA("BasePart")) then return false, nil end
 
-	-- 2. Must be directly inside GearGiver1 (strict name match: "geargiver1")
 	local gearGiver = touchPart.Parent
 	if not gearGiver then return false, nil end
-	local giverName = string.lower(gearGiver.Name)
-	if giverName ~= "geargiver1" then return false, nil end
+	if string.lower(gearGiver.Name) ~= "geargiver1" then return false, nil end
 
-	-- 3. Check ancestry to identify the base
+	-- Check ancestry to determine base identity
 	local current: Instance? = gearGiver.Parent
 	local matchedBase: string? = nil
 
 	while current and current ~= Workspace and current ~= game do
 		local cName = string.lower(current.Name)
 
-		-- Reject immediately if an excluded base name is found anywhere in ancestry
+		-- Excluded base rejection
 		for excluded in pairs(EXCLUDED_BASES) do
 			if string.find(cName, string.lower(excluded), 1, true) then
 				return false, nil
 			end
 		end
 
-		-- Check if an allowed base name appears in ancestry
+		-- Allowed base match
 		for allowed in pairs(ALLOWED_BASES) do
 			if string.find(cName, string.lower(allowed), 1, true) then
 				matchedBase = allowed
@@ -285,7 +117,6 @@ local function isValidGearGiver(descendant: Instance): (boolean, string?)
 		current = current.Parent
 	end
 
-	-- ONLY accept if it belongs to one of the 4 allowed bases
 	if matchedBase and ALLOWED_BASES[matchedBase] then
 		return true, matchedBase
 	end
@@ -293,111 +124,130 @@ local function isValidGearGiver(descendant: Instance): (boolean, string?)
 	return false, nil
 end
 
-local function evaluateAndAdd(descendant: Instance)
-	local isValid, baseName = isValidGearGiver(descendant)
-	if not isValid or not baseName then return end
+-- ============================================================================
+-- DYNAMIC PAD REGISTRATION
+-- ============================================================================
+local function registerPad(descendant: Instance)
+	local isValid, _ = isValidGearGiver(descendant)
+	if not isValid then return end
 
 	local parent = descendant.Parent
 	if not (parent and parent:IsA("BasePart")) then return end
 
-	if not table.find(touchableParts, parent) then
-		table.insert(touchableParts, parent)
-		partOrigins[parent] = baseName
-		SubtitleLabel.Text = string.format("Givers Active: %d (Robotic, Stone, Storm, Magic)", #touchableParts)
+	if not table.find(activeGiverParts, parent) then
+		table.insert(activeGiverParts, parent)
 
+		-- Dynamic cleanup when pad is destroyed or despawned
 		parent.AncestryChanged:Connect(function(_, newParent)
 			if not newParent then
-				local idx = table.find(touchableParts, parent)
+				local idx = table.find(activeGiverParts, parent)
 				if idx then
-					table.remove(touchableParts, idx)
-					partOrigins[parent] = nil
-					SubtitleLabel.Text = string.format("Givers Active: %d (Robotic, Stone, Storm, Magic)", #touchableParts)
+					table.remove(activeGiverParts, idx)
 				end
 			end
 		end)
+
+		-- If we are alive and still missing tools, claim immediately from this newly spawned pad
+		if currentRoot and not hasAllRequiredTools() then
+			task.spawn(function()
+				if fireTouch and parent and parent.Parent and currentRoot then
+					pcall(fireTouch, currentRoot, parent, 0)
+					pcall(fireTouch, currentRoot, parent, 1)
+				end
+			end)
+		end
 	end
 end
 
--- Scan tycoons
+-- Scan currently loaded tycoons
+local tycoons: Instance = Workspace:FindFirstChild("Tycoons") or Workspace
 for _, inst in ipairs(tycoons:GetDescendants()) do
-	evaluateAndAdd(inst)
+	registerPad(inst)
 end
 
-tycoons.DescendantAdded:Connect(evaluateAndAdd)
-
--- Fallback workspace scanner if tycoons folder was not top-level
+tycoons.DescendantAdded:Connect(registerPad)
 if tycoons ~= Workspace then
 	Workspace.DescendantAdded:Connect(function(inst)
 		if string.lower(inst.Name) == "geargiver1" or inst:IsA("TouchTransmitter") then
-			evaluateAndAdd(inst)
+			registerPad(inst)
 		end
 	end)
 end
 
+-- ============================================================================
+-- INSTANT FRAME-0 CLAIM CONTROLLER
+-- ============================================================================
+local function triggerClaim()
+	if isClaiming then return end
+	if not (currentRoot and currentRoot.Parent) then return end
+	if not fireTouch then return end
+	if hasAllRequiredTools() then return end
+
+	isClaiming = true
+
+	task.spawn(function()
+		local attempts = 0
+		while attempts < 10 do -- At most 10 quick pulses over 0.5s or until full inventory
+			if not (currentRoot and currentRoot.Parent) or hasAllRequiredTools() then
+				break
+			end
+
+			for i = 1, #activeGiverParts do
+				local pad = activeGiverParts[i]
+				if pad and pad.Parent and currentRoot then
+					pcall(fireTouch, currentRoot, pad, 0)
+					pcall(fireTouch, currentRoot, pad, 1)
+				end
+			end
+
+			attempts += 1
+			task.wait(0.05)
+		end
+
+		isClaiming = false
+	end)
+end
+
+_G.GrabTools = triggerClaim
+
 local function updateCharacterRoot(character: Model)
-	currentRoot = (character:WaitForChild("HumanoidRootPart", 5) 
+	currentRoot = (character:WaitForChild("HumanoidRootPart", 4) 
 		or character:FindFirstChildWhichIsA("BasePart")) :: BasePart?
+
+	-- Instant Frame-0 trigger upon spawn
+	if currentRoot and not hasAllRequiredTools() then
+		triggerClaim()
+	end
 end
 
 if LocalPlayer.Character then
 	updateCharacterRoot(LocalPlayer.Character)
 end
-LocalPlayer.CharacterAdded:Connect(updateCharacterRoot)
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+	updateCharacterRoot(char)
+end)
+
 LocalPlayer.CharacterRemoving:Connect(function()
 	currentRoot = nil
+	isClaiming = false
 end)
 
-local function fireAllTouches()
-	local root = currentRoot
-	if not (root and root.Parent) then return end
-	if not fireTouch then return end
-
-	for i = 1, #touchableParts do
-		local targetPart = touchableParts[i]
-		if targetPart and targetPart.Parent then
-			pcall(fireTouch, root, targetPart, 0)
-			pcall(fireTouch, root, targetPart, 1)
+-- Re-trigger claim only if a tool is lost from the backpack
+local function hookBackpack(bp: Backpack)
+	bp.ChildRemoved:Connect(function(child: Instance)
+		if child:IsA("Tool") and not hasAllRequiredTools() and currentRoot then
+			task.defer(triggerClaim)
 		end
-	end
-end
-
--- Timed periodic grab sweep (2 Hz)
-RunService.Heartbeat:Connect(function()
-	if not AutoGrab then return end
-
-	local now = os.clock()
-	if now - lastSweepTime < SWEEP_INTERVAL then return end
-	lastSweepTime = now
-
-	fireAllTouches()
-end)
-
-local function updateUI()
-	if AutoGrab then
-		ToggleBtn.Text = "AUTO-GRAB: ON"
-		ToggleBtn.TextColor3 = THEME.ActiveGreen
-		StatusDot.BackgroundColor3 = THEME.ActiveGreen
-		CardStroke.Color = THEME.Border
-	else
-		ToggleBtn.Text = "AUTO-GRAB: OFF"
-		ToggleBtn.TextColor3 = THEME.TextMuted
-		StatusDot.BackgroundColor3 = THEME.BorderDim
-		CardStroke.Color = THEME.BorderDim
-	end
-end
-
-ToggleBtn.MouseButton1Click:Connect(function()
-	AutoGrab = not AutoGrab
-	updateUI()
-end)
-
-GrabOnceBtn.MouseButton1Click:Connect(function()
-	fireAllTouches()
-	TweenService:Create(GrabOnceBtn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentDim}):Play()
-	task.delay(0.15, function()
-		TweenService:Create(GrabOnceBtn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.BgCard}):Play()
 	end)
+end
+
+local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+if bp then hookBackpack(bp) end
+LocalPlayer.ChildAdded:Connect(function(child)
+	if child:IsA("Backpack") then
+		hookBackpack(child)
+	end
 end)
 
-updateUI()
-print("[Tool Grabber] CIPHER // GEARGIVER1 GRABBER V6.1 Loaded (Robotic, Stone, Storm, Magic ONLY).")
+print("⚡ [Tool Grabber] CIPHER // V8.0 Smart Headless Loaded (Stops upon All 4 Tools Acquired).")
