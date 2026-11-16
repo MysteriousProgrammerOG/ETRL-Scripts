@@ -1,7 +1,7 @@
 -- ============================================================================
--- CIPHER // HITBOX EXPANDER V5.0 (HEADLESS BACKGROUND SERVICE)
--- Persistent Hitbox Expander with Guaranteed Respawn & Loopbring Synergy
--- Headless Edition: Always Active, UI-less, Lightweight
+-- CIPHER // HITBOX EXPANDER V9.0 (ULTIMATE RESPONSIVE HITBOX ENGINE)
+-- Based on V3 Architecture: Per-Frame Instant Attachment // Zero Latency
+-- Enhancements: Dual HRP+Torso Expansion // Fixed Property Errors // No Memory Leaks
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -9,160 +9,123 @@ local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 
--- Destroy any previous UI if left over
-pcall(function()
-	local core = game:GetService("CoreGui"):FindFirstChild("CipherDamageUI")
-	if core then core:Destroy() end
-	local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	if pgui then
-		local u = pgui:FindFirstChild("CipherDamageUI")
-		if u then u:Destroy() end
-	end
-end)
-
 -- Global API compatibility
-_G.HitboxSize = _G.HitboxSize or 12
-_G.Enabled = true
+_G.HitboxSize = _G.HitboxSize or 14
+_G.Enabled = if _G.Enabled ~= nil then _G.Enabled else true
 
--- Anti-Jitter Zero-Mass Physical Properties (Eliminates all Loopbring physics conflict)
-local ZERO_PHYSICS = PhysicalProperties.new(0.0001, 0, 0, 0, 0)
+-- Weak-keyed memory-safe cache (Automatically frees destroyed parts)
+local modified: { [BasePart]: boolean } = setmetatable({}, { __mode = "k" })
+local playerCache: { Player } = {}
+local cacheDirty: boolean = true
 
--- State & Caches
-local activeVisuals: { [BasePart]: SelectionBox } = {}
-local charConnections: { [Player]: { RBXScriptConnection } } = {}
+-- Vital combat parts to expand (Covers weapons that check HRP or Torso)
+local TARGET_PARTS = {
+	"HumanoidRootPart",
+	"Torso",
+	"UpperTorso",
+}
 
 -- ============================================================================
--- HIGH-PERFORMANCE HITBOX ENGINE
+-- INSTANT HITBOX ATTACHMENT
 -- ============================================================================
-local function applyHitboxToHRP(hrp: BasePart)
-	if not _G.Enabled then return end
-	if not (hrp and hrp.Parent) then return end
-
+local function expandPart(part: BasePart)
 	local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
 
-	if hrp.Size ~= targetSize then
-		hrp.Size = targetSize
-	end
+	pcall(function()
+		if part.Size ~= targetSize then
+			part.Size = targetSize
+		end
 
-	hrp.Transparency = 0.75
-	hrp.Material = Enum.Material.ForceField
+		part.Transparency = 0.75
+		part.Color = Color3.fromRGB(168, 85, 247) -- Cosmic Purple
+		part.Material = Enum.Material.ForceField
+		part.CanCollide = false
+		part.CanTouch = true
+		part.CanQuery = true
 
-	-- CRITICAL FOR LOOPBRING & WEAPON DETECTION:
-	-- CanCollide = false prevents pushing/flinging when brought near you
-	hrp.CanCollide = false
-	-- CanTouch & CanQuery = true ensures maximum weapon touch and hit registration
-	hrp.CanTouch = true
-	hrp.CanQuery = true
-	hrp.Massless = true
-	hrp.CustomPhysicalProperties = ZERO_PHYSICS
+		-- Ensure SelectionBox exists and is properly styled
+		local box = part:FindFirstChild("HitboxVisual") :: SelectionBox?
+		if not box then
+			local newBox = Instance.new("SelectionBox")
+			newBox.Name = "HitboxVisual"
+			newBox.Adornee = part
+			newBox.LineThickness = 0.05
+			newBox.Color3 = Color3.fromRGB(168, 85, 247)
+			newBox.SurfaceColor3 = Color3.fromRGB(168, 85, 247)
+			newBox.SurfaceTransparency = 0.75
+			newBox.Parent = part
+		end
+	end)
 
-	-- Visual Box
-	local box = activeVisuals[hrp] or hrp:FindFirstChild("HitboxVisual")
-	if not box then
-		local newBox = Instance.new("SelectionBox")
-		newBox.Name = "HitboxVisual"
-		newBox.Adornee = hrp
-		newBox.LineThickness = 0.05
-		newBox.Color3 = Color3.fromRGB(168, 85, 247) -- Cosmic Purple
-		newBox.SurfaceColor3 = Color3.fromRGB(168, 85, 247)
-		newBox.SurfaceTransparency = 0.82
-		newBox.Parent = hrp
-		activeVisuals[hrp] = newBox
-	end
+	modified[part] = true
 end
 
-local function applyHitboxToPlayer(player: Player)
+local function applyHitbox(player: Player)
 	if player == LocalPlayer then return end
 	local char = player.Character
 	if not char then return end
 
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if hrp and hrp:IsA("BasePart") then
-		applyHitboxToHRP(hrp)
+		-- Fast check: only skip if already modified and size matches
+		local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+		if not modified[hrp] or hrp.Size ~= targetSize then
+			expandPart(hrp)
+		end
+	end
+
+	-- Also expand Torso for weapons that check hit.Name == "Torso"
+	local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+	if torso and torso:IsA("BasePart") then
+		local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+		if not modified[torso] or torso.Size ~= targetSize then
+			expandPart(torso)
+		end
 	end
 end
 
 -- ============================================================================
--- GUARANTEED RESPAWN BINDING
+-- FAST PLAYER CACHE
 -- ============================================================================
-local function cleanupPlayerConns(player: Player)
-	if charConnections[player] then
-		for _, c in ipairs(charConnections[player]) do
-			c:Disconnect()
+local function updatePlayerCache()
+	table.clear(playerCache)
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			table.insert(playerCache, player)
 		end
-		charConnections[player] = nil
 	end
+	cacheDirty = false
 end
 
-local function bindPlayer(player: Player)
-	if player == LocalPlayer then return end
-	cleanupPlayerConns(player)
-
-	local conns: { RBXScriptConnection } = {}
-	charConnections[player] = conns
-
-	local function onCharacter(char: Model)
-		-- 1. Immediate check if HRP already exists
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		if hrp and hrp:IsA("BasePart") then
-			applyHitboxToHRP(hrp)
-		end
-
-		-- 2. ChildAdded listener for when HRP spawns in (Frame 0 + defer)
-		table.insert(conns, char.ChildAdded:Connect(function(child: Instance)
-			if child.Name == "HumanoidRootPart" and child:IsA("BasePart") then
-				applyHitboxToHRP(child)
-				task.defer(function()
-					applyHitboxToHRP(child)
-				end)
-			end
-		end))
-
-		-- 3. Non-blocking retry loop for slow loads
-		task.spawn(function()
-			local foundHRP = char:WaitForChild("HumanoidRootPart", 4)
-			if foundHRP and foundHRP:IsA("BasePart") and _G.Enabled then
-				applyHitboxToHRP(foundHRP)
-			end
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function()
+		task.defer(function()
+			applyHitbox(player)
 		end)
-	end
-
-	table.insert(conns, player.CharacterAdded:Connect(onCharacter))
-
-	if player.Character then
-		onCharacter(player.Character)
-	end
-end
-
-for _, p in ipairs(Players:GetPlayers()) do
-	bindPlayer(p)
-end
-
-Players.PlayerAdded:Connect(bindPlayer)
-Players.PlayerRemoving:Connect(function(player)
-	cleanupPlayerConns(player)
+	end)
+	cacheDirty = true
 end)
 
--- Gentle low-frequency persistence heartbeat (Every 0.5s)
-local lastCheck = 0
+Players.PlayerRemoving:Connect(function()
+	cacheDirty = true
+end)
+
+updatePlayerCache()
+
+-- ============================================================================
+-- PER-FRAME WATCHDOG (ZERO-DELAY RESPONSIVENESS)
+-- Runs every frame via Heartbeat, catching spawns the microsecond they appear
+-- ============================================================================
 RunService.Heartbeat:Connect(function()
 	if not _G.Enabled then return end
 
-	local now = os.clock()
-	if now - lastCheck < 0.5 then return end
-	lastCheck = now
+	if cacheDirty then
+		updatePlayerCache()
+	end
 
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-			if hrp and hrp:IsA("BasePart") then
-				local targetSize = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
-				if hrp.Size ~= targetSize or hrp.CanCollide == true then
-					applyHitboxToHRP(hrp)
-				end
-			end
-		end
+	for i = 1, #playerCache do
+		applyHitbox(playerCache[i])
 	end
 end)
 
-print("⚡ [Damage/Hitbox] CIPHER // V5.0 Headless Loaded (Always Active, Loopbring Synergized).")
+print("⚔️ CIPHER // HITBOX EXPANDER V9.0 (Ultimate Dual-Part Engine) Loaded.")
