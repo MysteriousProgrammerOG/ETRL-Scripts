@@ -1,12 +1,18 @@
 -- ============================================================================
--- CIPHER // UNIVERSAL TOOL REACH ENGINE V5.0 (HEADLESS BACKGROUND SERVICE)
--- Extended Tool Range for All Equipped Weapons (Zero UI Overhead)
--- Headless Edition: Always Active for All Tools, Mobile Optimized
+-- CIPHER // UNIVERSAL TOOL REACH ENGINE V6.0 (HEADLESS REACH & TOUCH ENGINE)
+-- Extended Tool Range for All Equipped Weapons (Visual & Server Touch Relay)
+-- Headless Edition: Always Active for All Tools // Server-Validated Touch
 -- ============================================================================
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+
+-- Executor API Resolver
+local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: any)
+	or (getgenv and (getgenv().firetouchinterest or getgenv().fire_touch_interest))
+	or (syn and syn.firetouchinterest)
 
 -- Destroy any previous UI if left over
 pcall(function()
@@ -21,7 +27,7 @@ end)
 
 -- Global Configuration & State
 _G.ReachEnabled = true
-_G.ReachSize = _G.ReachSize or 15
+_G.ReachSize = _G.ReachSize or 16
 
 local modifiedTools: { [Tool]: boolean } = {}
 
@@ -68,6 +74,52 @@ local function scanContainer(container: Instance?)
 end
 
 -- ============================================================================
+-- SERVER-VALIDATED TOUCH RELAY (ENSURES REACH HITS ACTUALLY REGISTER)
+-- ============================================================================
+local lastReachTouch = 0
+RunService.Heartbeat:Connect(function()
+	if not _G.ReachEnabled or not fireTouch then return end
+	local now = os.clock()
+	if now - lastReachTouch < 0.065 then return end
+	lastReachTouch = now
+
+	local char = LocalPlayer.Character
+	if not char then return end
+	local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+	if not (myRoot and myRoot:IsA("BasePart")) then return end
+	local myPos = myRoot.Position
+
+	local reachRangeSq = (_G.ReachSize + 3) * (_G.ReachSize + 3)
+
+	for tool in pairs(modifiedTools) do
+		if tool and tool.Parent == char then
+			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+			if handle and handle:IsA("BasePart") then
+				for _, player in ipairs(Players:GetPlayers()) do
+					if player ~= LocalPlayer and player.Character then
+						local pChar = player.Character
+						local hum = pChar:FindFirstChildOfClass("Humanoid")
+						local enemyTorso = pChar:FindFirstChild("Torso") or pChar:FindFirstChild("UpperTorso") or pChar:FindFirstChild("HumanoidRootPart")
+						local enemyHead = pChar:FindFirstChild("Head")
+						if hum and enemyTorso and enemyTorso:IsA("BasePart") and hum.Health > 0 then
+							local distSq = (enemyTorso.Position - myPos).Magnitude ^ 2
+							if distSq <= reachRangeSq then
+								pcall(fireTouch, handle, enemyTorso, 0)
+								pcall(fireTouch, handle, enemyTorso, 1)
+								if enemyHead and enemyHead:IsA("BasePart") then
+									pcall(fireTouch, handle, enemyHead, 0)
+									pcall(fireTouch, handle, enemyHead, 1)
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- ============================================================================
 -- LIFECYCLE LISTENERS
 -- ============================================================================
 local function hookBackpack(backpack: Backpack)
@@ -106,4 +158,4 @@ LocalPlayer.ChildAdded:Connect(function(child)
 	end
 end)
 
-print("⚡ [Reach] CIPHER // V5.0 Headless Loaded (Always Active for All Tools).")
+print("⚡ [Reach] CIPHER // V6.0 Headless Loaded (Active Touch Relay & Universal Reach).")
