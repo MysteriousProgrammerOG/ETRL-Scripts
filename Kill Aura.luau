@@ -1,10 +1,11 @@
 -- ============================================================================
--- CIPHER // KILL AURA V7.0 (HEADLESS BACKGROUND SERVICE)
--- 10-Stud Melee Combat Aura Triggered on Attack/Swing (Zero-Ping Overhead)
--- Headless Edition: Always Active, UI-less, Lightweight
+-- CIPHER // KILL AURA V8.0 (PURE TOUCH REPLICATION ENGINE)
+-- Dedicated Melee Touch Helper: Zero Remote Overhead // Pure Physics Replication
+-- Targets Head, Torso, & HumanoidRootPart ONLY for Maximum Hit Registration
 -- ============================================================================
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
@@ -14,24 +15,32 @@ local fireTouch: ((BasePart, BasePart, number) -> ())? = (firetouchinterest :: a
 	or (getgenv and (getgenv().firetouchinterest or getgenv().fire_touch_interest))
 	or (syn and syn.firetouchinterest)
 
--- Global State & Settings
+-- Global State & Configuration
 _G.KillAuraEnabled = true
-local RANGE: number       = 10     -- Exactly 10 studs
+local RANGE: number       = 22     -- 22-stud full combat perimeter
 local RANGE_SQ: number    = RANGE * RANGE
-local TOUCH_BURST: number = 3      -- Clean touch pairs per swing
+local TOUCH_BURST: number = 2      -- Clean double-tap per vital part
 
--- Internal Caches
-local toolParts: { BasePart } = {}
-local toolRemotes: { RemoteEvent } = {}
+-- In-Range Target Store (Tracks players currently inside our perimeter)
+type TargetEntry = {
+	Player: Player,
+	Character: Model,
+	HitParts: { BasePart },
+	Root: BasePart,
+}
+
+local inRangeTargets: { [Player]: TargetEntry } = {}
+local toolHandles: { BasePart } = {}
 local equippedTools: { Tool } = {}
 local toolConnections: { [Tool]: RBXScriptConnection } = {}
 
--- Priority parts for reliable hit registration
-local PRIORITY_PARTS = {
-	"HumanoidRootPart",
-	"Head",
-	"UpperTorso",
+-- Priority parts strictly limited to vital hit zones (Torso, Head, and Root)
+local VITAL_PART_NAMES = {
 	"Torso",
+	"UpperTorso",
+	"LowerTorso",
+	"Head",
+	"HumanoidRootPart",
 }
 
 -- Destroy any previous UI if left over
@@ -46,10 +55,10 @@ pcall(function()
 end)
 
 -- ============================================================================
--- AURA HIT EXECUTION (ON ATTACK / SWING ONLY)
+-- IN-RANGE PLAYER AUDITOR
 -- ============================================================================
-local function executeAuraStrike()
-	if not _G.KillAuraEnabled then return end
+local function refreshInRangeStore()
+	table.clear(inRangeTargets)
 
 	local char = LocalPlayer.Character
 	if not char then return end
@@ -59,7 +68,6 @@ local function executeAuraStrike()
 
 	local myPos = myRoot.Position
 
-	-- Find all enemies within 10 studs
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= LocalPlayer then
 			local pChar = p.Character
@@ -71,30 +79,46 @@ local function executeAuraStrike()
 					local dy = enemyRoot.Position.Y - myPos.Y
 					local dz = enemyRoot.Position.Z - myPos.Z
 					if (dx * dx + dy * dy + dz * dz) <= RANGE_SQ then
-						-- 1. Fire tool combat remotes
-						for r = 1, #toolRemotes do
-							local rem = toolRemotes[r]
-							if rem and rem.Parent and enemyRoot and enemyRoot.Parent then
-								pcall(rem.FireServer, rem, enemyRoot)
+						-- Extract ONLY Head, Torso, and Root parts
+						local vitalParts: { BasePart } = {}
+						for _, partName in ipairs(VITAL_PART_NAMES) do
+							local bp = pChar:FindFirstChild(partName)
+							if bp and bp:IsA("BasePart") and not table.find(vitalParts, bp) then
+								table.insert(vitalParts, bp)
 							end
 						end
 
-						-- 2. Fire touch interests to priority parts
-						if fireTouch then
-							for _, partName in ipairs(PRIORITY_PARTS) do
-								local enemyPart = pChar:FindFirstChild(partName)
-								if enemyPart and enemyPart:IsA("BasePart") and enemyPart.Parent then
-									for t = 1, #toolParts do
-										local toolPart = toolParts[t]
-										if toolPart and toolPart.Parent then
-											for _ = 1, TOUCH_BURST do
-												pcall(fireTouch, toolPart, enemyPart, 0)
-												pcall(fireTouch, toolPart, enemyPart, 1)
-											end
-										end
-									end
-								end
-							end
+						inRangeTargets[p] = {
+							Player = p,
+							Character = pChar,
+							HitParts = vitalParts,
+							Root = enemyRoot,
+						}
+					end
+				end
+			end
+		end
+	end
+end
+
+-- ============================================================================
+-- PURE TOUCH REPLICATION (NO REMOTES - STRICT TOUCH HELPER)
+-- ============================================================================
+local function replicateTouches()
+	if not _G.KillAuraEnabled or not fireTouch then return end
+	if #toolHandles == 0 then return end
+
+	for _, target in pairs(inRangeTargets) do
+		local parts = target.HitParts
+		for p = 1, #parts do
+			local enemyPart = parts[p]
+			if enemyPart and enemyPart.Parent then
+				for t = 1, #toolHandles do
+					local toolHandle = toolHandles[t]
+					if toolHandle and toolHandle.Parent then
+						for _ = 1, TOUCH_BURST do
+							pcall(fireTouch, toolHandle, enemyPart, 0)
+							pcall(fireTouch, toolHandle, enemyPart, 1)
 						end
 					end
 				end
@@ -106,40 +130,21 @@ end
 -- ============================================================================
 -- TOOL CACHING & SWING HOOKING
 -- ============================================================================
-local function findFightRemote(tool: Tool): RemoteEvent?
-	local r = tool:FindFirstChild("FightEvent")
-	if r and r:IsA("RemoteEvent") then return r end
-	for _, o in ipairs(tool:GetChildren()) do
-		if o:IsA("RemoteEvent") then
-			local n = string.lower(o.Name)
-			if string.find(n, "fight", 1, true)
-				or string.find(n, "slap", 1, true)
-				or string.find(n, "hit", 1, true)
-				or string.find(n, "attack", 1, true)
-				or string.find(n, "combat", 1, true)
-				or string.find(n, "event", 1, true) then
-				return o
-			end
-		end
-	end
-	return nil
-end
-
 local function hookToolAttack(tool: Tool)
 	if toolConnections[tool] then
 		toolConnections[tool]:Disconnect()
 		toolConnections[tool] = nil
 	end
 
-	-- Strike when weapon is activated
+	-- Instant touch burst whenever tool activates/swings
 	toolConnections[tool] = tool.Activated:Connect(function()
-		executeAuraStrike()
+		refreshInRangeStore()
+		replicateTouches()
 	end)
 end
 
-local function rebuildToolParts()
-	table.clear(toolParts)
-	table.clear(toolRemotes)
+local function rebuildToolHandles()
+	table.clear(toolHandles)
 	table.clear(equippedTools)
 
 	local char = LocalPlayer.Character
@@ -155,29 +160,38 @@ local function rebuildToolParts()
 				handle.CanCollide = false
 				handle.Massless = true
 				handle.CanTouch = true
-				if not table.find(toolParts, handle) then
-					table.insert(toolParts, handle)
+				if not table.find(toolHandles, handle) then
+					table.insert(toolHandles, handle)
 				end
-			end
-
-			local rem = findFightRemote(t)
-			if rem and not table.find(toolRemotes, rem) then
-				table.insert(toolRemotes, rem)
 			end
 		end
 	end
 end
 
--- Screen tap / mouse click fallback attack trigger
+-- Screen tap / mouse click fallback trigger
 UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	if gpe then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
 		or input.KeyCode == Enum.KeyCode.ButtonR2 then
 		if #equippedTools > 0 and _G.KillAuraEnabled then
-			executeAuraStrike()
+			refreshInRangeStore()
+			replicateTouches()
 		end
 	end
+end)
+
+-- Continuous Proximity Touch Watchdog (15 Hz)
+-- Replicates touches smoothly to all stored in-range players without remote overhead
+local lastTouchTick = 0
+RunService.Heartbeat:Connect(function()
+	if not _G.KillAuraEnabled then return end
+	local now = os.clock()
+	if now - lastTouchTick < 0.065 then return end
+	lastTouchTick = now
+
+	refreshInRangeStore()
+	replicateTouches()
 end)
 
 local function hookCharacter(char: Model)
@@ -186,26 +200,29 @@ local function hookCharacter(char: Model)
 	end
 	table.clear(toolConnections)
 
-	rebuildToolParts()
+	rebuildToolHandles()
 	char.ChildAdded:Connect(function(child: Instance)
 		if child:IsA("Tool") then
-			rebuildToolParts()
-			-- Frame-0 Instant Damage Burst upon Equip / Respawn
+			rebuildToolHandles()
+			-- Frame-0 Instant Touch Burst upon Equip / Respawn
 			task.defer(function()
 				if _G.KillAuraEnabled then
-					executeAuraStrike()
+					refreshInRangeStore()
+					replicateTouches()
 				end
 			end)
 		end
 	end)
 	char.ChildRemoved:Connect(function(child: Instance)
 		if child:IsA("Tool") then
-			task.defer(rebuildToolParts)
+			task.defer(rebuildToolHandles)
 		end
 	end)
-	-- Initial check for already equipped tools on spawn
 	if #equippedTools > 0 and _G.KillAuraEnabled then
-		task.defer(executeAuraStrike)
+		task.defer(function()
+			refreshInRangeStore()
+			replicateTouches()
+		end)
 	end
 end
 
@@ -214,4 +231,8 @@ if LocalPlayer.Character then
 end
 LocalPlayer.CharacterAdded:Connect(hookCharacter)
 
-print("⚡ [Kill Aura] CIPHER // V7.0 Headless Loaded (Always Active, 10-Stud On-Attack).")
+Players.PlayerRemoving:Connect(function(p)
+	inRangeTargets[p] = nil
+end)
+
+print("⚡ [Kill Aura] CIPHER // V8.0 Pure Touch Loaded (Head & Torso Focused, Zero Remotes).")
